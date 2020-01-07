@@ -1,0 +1,8 @@
+*.so
+dolorem
+*~
+LOG
+*.swp
+old*
+*.o
+confld.sh

@@ -1,0 +1,167 @@
+# String type
+create-alias str (ptr char);
+
+# LLVM
+create-alias LLVMValueRef ptr;
+create-alias LLVMModuleRef ptr;
+
+funproto LLVMAppendBasicBlock ((ptr fun) (str name)) ptr;
+funproto LLVMBuildCondBr ((ptr builder) (ptr cond) (ptr block1) (ptr block2)) ptr;
+funproto LLVMBuildBr ((ptr builder) (ptr block)) ptr;
+funproto LLVMPositionBuilderAtEnd ((ptr builder) (ptr block)) void;
+funproto LLVMBuildIntCast ((ptr builder) (ptr val) (ptr destty) (str name)) ptr;
+funproto LLVMInt1Type () ptr;
+funproto LLVMBuildNot ((ptr builder) (LLVMValueRef v) (str name)) LLVMValueRef;
+funproto LLVMModuleCreateWithName ((str name)) LLVMModuleRef;
+funproto LLVMWriteBitcodeToFile ((LLVMModuleRef m) (str filename)) i32;
+funproto LLVMBuildPhi ((ptr bldr) (ptr type) (str name)) LLVMValueRef;
+funproto LLVMAddIncoming ((LLVMValueRef phi) ((ptr LLVMValueRef) values) ((ptr LLVMValueRef) blocks) (u32 count)) void;
+funproto LLVMBuildAdd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildSub ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildMul ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildDiv ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildAnd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildOr ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildShl ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildAShr ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildSRem ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildICmp ((ptr bldr) (i32 op) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+
+# Own compiler
+external-global ptr bldr;
+external-global ptr curllvmfn;
+funproto empty-rtv () rtv;
+funproto car ((val a)) val;
+funproto cdr ((val a)) val;
+funproto eval ((val a)) rtv;
+funproto unwrap-llvm-value ((rtv a)) ptr;
+funproto convert-type ((rtv a) (rtt t) (i32 is-unsigned)) rtv;
+funproto lower-integer-type ((i32 size) (i32 is-unsigned)) rtt;
+funproto unwrap-type ((rtv a)) rtt;
+funproto unwrap-llvm-type ((rtt a)) ptr;
+funproto expect-ident ((val a)) str;
+funproto is-nil ((val a)) i32;
+funproto make-rtv ((LLVMValueRef v) (rtt t)) rtv;
+funproto make-twin-rtv ((LLVMValueRef v) (rtv old)) rtv;
+funproto add-variable ((str name) (rtt type)) rtv;
+funproto eval-type ((val a)) rtt;
+funproto lower-assign ((str name) (rtv rhs)) void;
+funproto copy-symbol-to-module ((str symbol) (LLVMModuleRef mod)) void;
+funproto expect-same-integer ((rtv a) (rtv b) (val errloc)) void;
+funproto call-fun-macro ((str name) (val a)) rtv;
+
+# List functions
+defun cadr ((val a)) val (car (cdr a));
+defun caddr ((val a)) val (car (cdr (cdr a)));
+
+# Unary operator
+defun lower-not ((rtv a)) rtv
+  (make-twin-rtv (LLVMBuildNot bldr (unwrap-llvm-value a) "not") a);
+defmacro not
+  (lower-not (eval (car args)));
+
+# Control structures: cond
+defun lower-cond (rtv cond; val body; ptr block1; ptr block2;) rtv {
+  LLVMBuildCondBr bldr (unwrap-llvm-value cond) block1 block2;
+  LLVMPositionBuilderAtEnd bldr block1;
+  eval body;
+  LLVMBuildBr bldr block2;
+  LLVMPositionBuilderAtEnd bldr block2;
+ cond
+};
+defmacro cond (lower-cond (convert-type (eval (car args)) (lower-integer-type 1 0) 1)
+                       (car (cdr args))
+                       (LLVMAppendBasicBlock curllvmfn "condblock")
+                       (LLVMAppendBasicBlock curllvmfn "aftercond"));
+
+# Variables
+defmacro var {
+  add-variable (expect-ident (cadr args)) (eval-type (car args));
+  cond (not (is-nil (cdr (cdr args))))
+    (lower-assign (expect-ident (cadr args)) (eval (car (cdr (cdr args)))));
+ (empty-rtv)
+};
+
+# Control structure: if
+defmacro if {
+  var ptr ifblk (LLVMAppendBasicBlock curllvmfn "ifblk");
+  var ptr elseblk (LLVMAppendBasicBlock curllvmfn "elseblk");
+  var ptr afterif (LLVMAppendBasicBlock curllvmfn "afterif");
+  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (eval (car args)) (lower-integer-type 1 0) 1)) ifblk elseblk;
+  LLVMPositionBuilderAtEnd bldr ifblk;
+  var rtv ifres (eval (cadr args));
+  LLVMBuildBr bldr afterif;
+  LLVMPositionBuilderAtEnd bldr elseblk;
+  var rtv elseres (convert-type (eval (caddr args)) (unwrap-type ifres) 0);
+  LLVMBuildBr bldr afterif;
+  LLVMPositionBuilderAtEnd bldr afterif;
+  var LLVMValueRef phi (LLVMBuildPhi bldr (unwrap-llvm-type (unwrap-type ifres)) "if_phi");
+  var LLVMValueRef ifval (unwrap-llvm-value ifres);
+  var LLVMValueRef elseval (unwrap-llvm-value elseres);
+  LLVMAddIncoming phi (ptr-to ifval) (ptr-to ifblk) 1;
+  LLVMAddIncoming phi (ptr-to elseval) (ptr-to elseblk) 1;
+ (make-twin-rtv phi ifres)
+};
+
+# Binary operators
+defmacro arithmetic-op
+  (call-fun-macro "defmacro"
+    (quasiquote (quasiunquote (car args)) {
+      var rtv left;
+      var rtv right;
+      assign left (eval (car args));
+      assign right (eval (cadr args));
+      expect-same-integer left right args;
+     (make-twin-rtv ((quasiunquote (cadr args)) bldr (unwrap-llvm-value left) (unwrap-llvm-value right) (quasiunquote (caddr args))) left)}));
+defmacro comparison-op
+  (call-fun-macro "defmacro"
+    (quasiquote (quasiunquote (car args)) {
+      (var rtv left)
+      (var rtv right)
+      (assign left (eval (car args)))
+      (assign right (eval (cadr args)))
+      (expect-same-integer left right args)
+     (make-rtv (LLVMBuildICmp bldr (quasiunquote (cadr args)) (unwrap-llvm-value left) (unwrap-llvm-value right) "cmp") (lower-integer-type 1 0))}));
+
+arithmetic-op + LLVMBuildAdd "add";
+arithmetic-op - LLVMBuildSub "sub";
+arithmetic-op * LLVMBuildMul "mul";
+arithmetic-op / LLVMBuildDiv "div";
+arithmetic-op && LLVMBuildAnd "and";
+arithmetic-op || LLVMBuildOr "or";
+arithmetic-op << LLVMBuildShl "shr";
+arithmetic-op >> LLVMBuildAShr "shl";
+arithmetic-op mod LLVMBuildSRem "rem";
+
+# The numbers are guaranteed to remain stable, see https://llvm.org/doxygen/c_2Core_8h_source.html#l00284
+# TODO: pay attention to signedness!
+comparison-op = 32;
+comparison-op != 33;
+comparison-op > 38;
+comparison-op >= 39;
+comparison-op < 40;
+comparison-op <= 41;
+
+# while
+defmacro while {
+  var ptr cond (LLVMAppendBasicBlock curllvmfn "condblock");
+  var ptr loop (LLVMAppendBasicBlock curllvmfn "loopblock");
+  var ptr after (LLVMAppendBasicBlock curllvmfn "afterwhile");
+  LLVMBuildBr bldr cond;
+  LLVMPositionBuilderAtEnd bldr cond;
+  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (eval (car args)) (lower-integer-type 1 0) 1)) loop after;
+  LLVMPositionBuilderAtEnd bldr loop;
+  eval (cadr args);
+  LLVMBuildBr bldr cond;
+  LLVMPositionBuilderAtEnd bldr after;
+ (empty-rtv)
+};
+
+# Linker control
+funproto dlopen ((str a) (i32 mode)) ptr;
+# 257 is system-dependant!
+# 257 = 0x100 | 0x1 = RTLD_GLOBAL | RTLD_LAZY, see /usr/include/bits/dlfcn.h
+defmacro link-in {
+  dlopen (expect-ident (car args)) 257;
+ (empty-rtv)
+};
