@@ -6,6 +6,9 @@
 #include "list.h"
 #include "type.h"
 
+#include "global.h"
+#include "hashmap.h"
+
 void init_var() { lower_macroproto("assign"); }
 void end_var() {}
 
@@ -24,17 +27,32 @@ struct rtv *add_variable(const char *name, struct rtt *type) {
 
 void lower_assign(const char *name, struct rtv *rhs) {
   struct funvar *var;
+  struct global *g;
   struct rtv *conv;
   var = lookup_in_fun_scope(curfn, name);
   if (!var) {
-    compiler_error_internal("unknown variable: \"%s\"", name);
+    LLVMValueRef v;
+    if (hashmap_get(map_globals, name, (void **)&g) != MAP_OK) {
+      compiler_error_internal("unknown variable: \"%s\"", name);
+    }
+    conv = convert_type(rhs, g->type, 0);
+    if (!conv) {
+      compiler_error_internal("couldn't convert \"%s\" to \"%s\" implicitly",
+                              print_type(&rhs->t), print_type(&g->type->t));
+    }
+    v = LLVMGetNamedGlobal(mod, g->name);
+    if (!v) {
+      v = LLVMAddGlobal(mod, g->type->l, g->name);
+    }
+    LLVMBuildStore(bldr, conv->v, v);
+  } else {
+    conv = convert_type(rhs, &var->t, 0);
+    if (!conv) {
+      compiler_error_internal("couldn't convert \"%s\" to \"%s\" implicitly",
+                              print_type(&rhs->t), print_type(&var->t.t));
+    }
+    LLVMBuildStore(bldr, conv->v, var->v.v);
   }
-  conv = convert_type(rhs, &var->t, 0);
-  if (!conv) {
-    compiler_error_internal("couldn't convert \"%s\" to \"%s\" implicitly",
-                            print_type(&rhs->t), print_type(&var->t.t));
-  }
-  LLVMBuildStore(bldr, conv->v, var->v.v);
 }
 
 struct rtv *assign(struct val *e) {

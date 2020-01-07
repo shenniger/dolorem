@@ -27,7 +27,7 @@ funproto LLVMBuildAShr ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str na
 funproto LLVMBuildSRem ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildICmp ((ptr bldr) (i32 op) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 
-# Own compiler
+# compiler
 external-global ptr bldr;
 external-global ptr curllvmfn;
 funproto empty-rtv () rtv;
@@ -49,6 +49,7 @@ funproto lower-assign ((str name) (rtv rhs)) void;
 funproto copy-symbol-to-module ((str symbol) (LLVMModuleRef mod)) void;
 funproto expect-same-integer ((rtv a) (rtv b) (val errloc)) void;
 funproto call-fun-macro ((str name) (val a)) rtv;
+funproto compiler-error ((val v) (str msg)) void;
 
 # List functions
 defun cadr ((val a)) val (car (cdr a));
@@ -143,17 +144,47 @@ comparison-op < 40;
 comparison-op <= 41;
 
 # while
+defglobal ptr while-last-cond-block;
+defglobal ptr while-last-after-block;
+defglobal bool while-in-loop;
 defmacro while {
   var ptr cond (LLVMAppendBasicBlock curllvmfn "condblock");
   var ptr loop (LLVMAppendBasicBlock curllvmfn "loopblock");
   var ptr after (LLVMAppendBasicBlock curllvmfn "afterwhile");
   LLVMBuildBr bldr cond;
   LLVMPositionBuilderAtEnd bldr cond;
-  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (eval (car args)) (lower-integer-type 1 0) 1)) loop after;
+  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (eval (car args))
+                                          (lower-integer-type 1 0) 1))
+                  loop after;
   LLVMPositionBuilderAtEnd bldr loop;
+  var ptr last-last-cond while-last-cond-block;
+  var ptr last-last-after while-last-after-block;
+  var bool last-in-loop while-in-loop;
+  assign while-last-cond-block cond;
+  assign while-last-after-block after;
+  assign while-in-loop 1;
   eval (cadr args);
+  assign while-last-cond-block last-last-cond;
+  assign while-last-after-block last-last-after;
+  assign while-in-loop last-in-loop;
   LLVMBuildBr bldr cond;
   LLVMPositionBuilderAtEnd bldr after;
+ (empty-rtv)
+};
+defmacro break {
+  cond (not while-in-loop) {
+    compiler-error args "break outside of loop";
+  };
+  LLVMBuildBr bldr while-last-after-block;
+  LLVMPositionBuilderAtEnd bldr (LLVMAppendBasicBlock curllvmfn "unreachable_dummy_break_block");
+ (empty-rtv)
+};
+defmacro continue {
+  cond (not while-in-loop) {
+    compiler-error args "continue outside of loop";
+  };
+  LLVMBuildBr bldr while-last-cond-block;
+  LLVMPositionBuilderAtEnd bldr (LLVMAppendBasicBlock curllvmfn "unreachable_dummy_continue_block");
  (empty-rtv)
 };
 

@@ -22,6 +22,6 @@ void AddGlobalDef(LLVMModuleRef m, LLVMTypeRef ty, const char *name) {
     init = ConstantPointerNull::get(cast<PointerType>(t));
   }
 
-  new GlobalVariable(*unwrap(m), t, false, GlobalValue::CommonLinkage, init,
+  new GlobalVariable(*unwrap(m), t, false, GlobalValue::ExternalLinkage, init,
                      name);
 }
