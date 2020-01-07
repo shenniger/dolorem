@@ -143,6 +143,15 @@ comparison-op >= 39;
 comparison-op < 40;
 comparison-op <= 41;
 
+# :=
+defmacro := {
+  var rtv r (eval (car (cdr args)));
+  var str name (expect-ident (car args));
+  add-variable name (unwrap-type r);
+  lower-assign name r;
+ r
+};
+
 # while
 defglobal ptr while-last-cond-block;
 defglobal ptr while-last-after-block;

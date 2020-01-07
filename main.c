@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
   init_global();
   init_var();
   init_quote();
-  init_include(dump_lists);
+  init_include();
   init_eval();
 
   for (i = 1; i < argc; ++i) {

@@ -1,0 +1,25 @@
+link-in libSDL2.so;
+
+create-alias SDL_Window ptr;
+create-alias SDL_Renderer ptr;
+create-alias SDL_Surface ptr;
+create-alias SDL_Texture ptr;
+funproto SDL_Init ((u32 what)) i32;
+# what: 32 = SDL_INIT_VIDEO
+funproto SDL_Quit () void;
+funproto SDL_CreateWindow (str name; i32 x; i32 y; i32 w; i32 h; u32 flags;) SDL_Window;
+# flags: 4 = SDL_WINDOW_SHOWN
+funproto SDL_DestroyWindow (SDL_Window w;) void;
+funproto SDL_CreateRenderer (SDL_Window w; i32 idx; u32 flags;) SDL_Renderer;
+# idx should be -1, flags: 1 = SDL_RENDERER_SOFTWARE
+funproto SDL_DestroyRenderer (SDL_Renderer r;) void;
+funproto SDL_LoadBMP (str name;) SDL_Surface;
+funproto SDL_FreeSurface (SDL_Surface s;) void;
+funproto SDL_CreateTextureFromSurface (SDL_Renderer r; SDL_Surface s;) SDL_Texture;
+funproto SDL_DestroyTexture (SDL_Texture t;) void;
+funproto SDL_RenderClear (SDL_Renderer r;) void;
+funproto SDL_RenderPresent (SDL_Renderer r;) void;
+funproto SDL_RenderCopy (SDL_Renderer r; SDL_Texture t; ptr src; ptr dest;) i32;
+funproto SDL_SetRenderDrawColor (SDL_Renderer r; u8 r; u8 g; u8 b; u8 a;) i32;
+funproto SDL_RenderDrawPoint (SDL_Renderer r; i32 x; i32 y;) i32;
+funproto SDL_RenderDrawLine (SDL_Renderer r; i32 x1; i32 y1; i32 x2; i32 y2;) i32;
