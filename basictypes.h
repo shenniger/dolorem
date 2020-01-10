@@ -12,7 +12,7 @@ struct typealias {
 };
 
 extern struct typeinf *basictypes_integer, *basictypes_alias,
-    *basictypes_pointer;
+    *basictypes_pointer, *basictypes_float;
 
 void init_basictypes();
 void end_basictypes();
@@ -24,9 +24,15 @@ struct typealias *lower_create_alias(struct rtt *l, const char *name);
 struct rtv *create_alias(struct val *e);
 struct rtt *alias_type(struct val *e, void *prop);
 
+void expect_same_number(struct rtv *a, struct rtv *b, struct val *errloc);
+
 struct rtt *integer_type(struct val *e, void *prop);
 struct rtt *lower_integer_type(int size, int is_unsigned);
-void expect_same_integer(struct rtv *a, struct rtv *b, struct val *errloc);
+inline int is_int(struct rtt *a) { return a->t.info == basictypes_integer; }
+
+struct rtt *float_type(struct val *e, void *prop);
+struct rtt *lower_float_type(int size);
+inline int is_float(struct rtt *a) { return a->t.info == basictypes_float; }
 
 /* pointers */
 struct rtt *lower_pointer_type(struct rtt *t);

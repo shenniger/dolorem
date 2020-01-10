@@ -190,6 +190,11 @@ _Noreturn void compiler_error(struct val *l, const char *fmt, ...) {
   vfprintf(stderr, fmt, va);
   va_end(va);
   fputs("\n", stderr);
+  if (!l->FileIdx) {
+    fprintf(stdout, "near generated code \"");
+    print_list(l);
+    fprintf(stdout, "\"\n");
+  }
   exit(1);
 }
 
@@ -209,6 +214,11 @@ void compiler_hint(struct val *l, const char *fmt, ...) {
   va_start(va, fmt);
   vfprintf(stderr, fmt, va);
   va_end(va);
+  if (!l->FileIdx) {
+    fprintf(stdout, "near generated code \"");
+    print_list(l);
+    fprintf(stdout, "\"\n");
+  }
   fputs("\n", stderr);
 }
 void compiler_hint_internal(const char *fmt, ...) {

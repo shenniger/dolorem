@@ -2,6 +2,7 @@
 
 #include "basictypes.h"
 #include "eval.h"
+#include "include.h"
 #include "jit.h"
 
 #include <alloca.h>
@@ -215,6 +216,10 @@ void funbody(struct fun *f, struct val *body) {
   long i;
   LLVMValueRef *params;
 
+  if (!precompiled_module) {
+    return;
+  }
+
   begin_new_function();
   fun = LLVMAddFunction(mod, f->name, f->type.funtype);
   fun_set_proper_parm_names(f, fun);
@@ -262,6 +267,7 @@ void funbody(struct fun *f, struct val *body) {
   curfn = prev;
   curllvmfn = prev2;
   end_function(f->name);
+  add_symbol_to_module(f->name, precompiled_module);
 }
 
 struct rtv *macroproto(struct val *l) {

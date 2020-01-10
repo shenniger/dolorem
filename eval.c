@@ -41,7 +41,9 @@ struct rtv *eval(struct val *e) {
         LLVMConstInt(LLVMInt64Type(), e->V.I, 0),
         make_rtt(LLVMInt64Type(), basictypes_integer, (void *)(0x100 & 64), 0));
   case tyFloat:
-    assert(!"not impl"); /* TODO */
+    return make_rtv(
+        LLVMConstReal(LLVMDoubleType(), e->V.F),
+        make_rtt(LLVMDoubleType(), basictypes_float, (void *)0x2, 0));
   case tyIdent: {
     struct funvar *f;
     struct global *g;

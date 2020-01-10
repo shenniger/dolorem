@@ -6,6 +6,16 @@
 
 #include <stdio.h>
 
+#include <assert.h>
+#include <dlfcn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+LLVMModuleRef precompiled_module;
+
 void init_include() { lower_macroproto("include"); }
 void end_include() {}
 struct rtv *include(struct val *l) {
@@ -21,10 +31,41 @@ struct rtv *include(struct val *l) {
 }
 struct rtv *lower_include(const char *filename) {
   struct val *list;
+  struct rtv *r;
+  LLVMModuleRef pcmod_before;
+  const char *so_path;
   list = read_file(filename);
   if (dump_lists) {
     print_list(list);
     printf("\n");
   }
-  return progn(list);
+  pcmod_before = precompiled_module;
+  so_path = print_to_mem("./%s_pc.so", filename);
+  {
+    struct stat src, so;
+    stat(filename, &src);
+    if (stat(so_path, &so) == 0 && src.st_mtime < so.st_mtime) {
+      precompiled_module = NULL;
+      if (!dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL)) {
+        compiler_error_internal("failure loading precompiled file \"%s\": %s",
+                                so_path, dlerror());
+      }
+    } else {
+      precompiled_module = LLVMModuleCreateWithName(filename);
+    }
+  }
+  r = progn(list);
+  {
+    if (precompiled_module) {
+      const char *bc_path;
+      bc_path = print_to_mem("%s_pc.bc", filename);
+      LLVMWriteBitcodeToFile(precompiled_module, bc_path);
+      fprintf(stderr, "Precompiling %s…\n", filename);
+      system(
+          print_to_mem("clang %s -o %s -fpic -shared -O9", bc_path, so_path));
+      fprintf(stderr, "Done. %s written.\n", so_path);
+    }
+    precompiled_module = pcmod_before;
+  }
+  return r;
 }

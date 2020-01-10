@@ -20,12 +20,17 @@ funproto LLVMBuildAdd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str nam
 funproto LLVMBuildSub ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildMul ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildDiv ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildFAdd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildFSub ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildFMul ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildFDiv ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildAnd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildOr ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildShl ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildAShr ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildSRem ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildICmp ((ptr bldr) (i32 op) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildFCmp ((ptr bldr) (i32 op) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 
 # compiler
 external-global ptr bldr;
@@ -47,13 +52,16 @@ funproto add-variable ((str name) (rtt type)) rtv;
 funproto eval-type ((val a)) rtt;
 funproto lower-assign ((str name) (rtv rhs)) void;
 funproto copy-symbol-to-module ((str symbol) (LLVMModuleRef mod)) void;
-funproto expect-same-integer ((rtv a) (rtv b) (val errloc)) void;
+funproto expect-same-number ((rtv a) (rtv b) (val errloc)) void;
 funproto call-fun-macro ((str name) (val a)) rtv;
 funproto compiler-error ((val v) (str msg)) void;
+funproto is-int ((rtt v)) i32;
+funproto is-float ((rtt v)) i32;
 
 # List functions
 defun cadr ((val a)) val (car (cdr a));
 defun caddr ((val a)) val (car (cdr (cdr a)));
+defun cadddr ((val a)) val (car (cdr (cdr (cdr a))));
 
 # Unary operator
 defun lower-not ((rtv a)) rtv
@@ -112,8 +120,16 @@ defmacro arithmetic-op
       var rtv right;
       assign left (eval (car args));
       assign right (eval (cadr args));
-      expect-same-integer left right args;
-     (make-twin-rtv ((quasiunquote (cadr args)) bldr (unwrap-llvm-value left) (unwrap-llvm-value right) (quasiunquote (caddr args))) left)}));
+      expect-same-number left right args;
+     (if (is-int (unwrap-type left))
+       (make-twin-rtv ((quasiunquote (cadr args)) bldr (unwrap-llvm-value left) (unwrap-llvm-value right) (quasiunquote (cadddr args))) left)
+       (quasiunquote
+         (if (is-nil (caddr args))
+           (quote progn (compiler-error args "operation not supported on floats")
+                        (empty-rtv))
+           (quasiquote make-twin-rtv ((quasiunquote (caddr args)) bldr (unwrap-llvm-value left) (unwrap-llvm-value right) (quasiunquote (cadddr args))) left)
+       ))
+     )}));
 defmacro comparison-op
   (call-fun-macro "defmacro"
     (quasiquote (quasiunquote (car args)) {
@@ -121,27 +137,30 @@ defmacro comparison-op
       (var rtv right)
       (assign left (eval (car args)))
       (assign right (eval (cadr args)))
-      (expect-same-integer left right args)
-     (make-rtv (LLVMBuildICmp bldr (quasiunquote (cadr args)) (unwrap-llvm-value left) (unwrap-llvm-value right) "cmp") (lower-integer-type 1 0))}));
+      (expect-same-number left right args)
+     (if (is-int (unwrap-type left))
+       (make-rtv (LLVMBuildICmp bldr (quasiunquote (cadr args)) (unwrap-llvm-value left) (unwrap-llvm-value right) "cmp") (lower-integer-type 1 0))
+       (make-rtv (LLVMBuildFCmp bldr (quasiunquote (caddr args)) (unwrap-llvm-value left) (unwrap-llvm-value right) "cmp") (lower-integer-type 1 0))
+    )}));
 
-arithmetic-op + LLVMBuildAdd "add";
-arithmetic-op - LLVMBuildSub "sub";
-arithmetic-op * LLVMBuildMul "mul";
-arithmetic-op / LLVMBuildDiv "div";
-arithmetic-op && LLVMBuildAnd "and";
-arithmetic-op || LLVMBuildOr "or";
-arithmetic-op << LLVMBuildShl "shr";
-arithmetic-op >> LLVMBuildAShr "shl";
-arithmetic-op mod LLVMBuildSRem "rem";
+arithmetic-op + LLVMBuildAdd LLVMBuildFAdd "add";
+arithmetic-op - LLVMBuildSub LLVMBuildFSub "sub";
+arithmetic-op * LLVMBuildMul LLVMBuildFMul "mul";
+arithmetic-op / LLVMBuildDiv LLVMBuildFDiv "div";
+arithmetic-op && LLVMBuildAnd () "and";
+arithmetic-op || LLVMBuildOr () "or";
+arithmetic-op << LLVMBuildShl () "shr";
+arithmetic-op >> LLVMBuildAShr () "shl";
+arithmetic-op mod LLVMBuildSRem () "rem";
 
 # The numbers are guaranteed to remain stable, see https://llvm.org/doxygen/c_2Core_8h_source.html#l00284
 # TODO: pay attention to signedness!
-comparison-op = 32;
-comparison-op != 33;
-comparison-op > 38;
-comparison-op >= 39;
-comparison-op < 40;
-comparison-op <= 41;
+comparison-op = 32 1;
+comparison-op != 33 6;
+comparison-op > 38 2;
+comparison-op >= 39 3;
+comparison-op < 40 4;
+comparison-op <= 41 5;
 
 # :=
 defmacro := {

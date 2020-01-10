@@ -1,6 +1,7 @@
 #include "global.h"
 
 #include "fun.h"
+#include "include.h"
 
 map_t map_globals;
 
@@ -23,8 +24,9 @@ void lower_defglobal(const char *name, struct rtt *type, int isextern) {
   if (hashmap_put(map_globals, name, g) != MAP_OK) {
     compiler_error_internal("error defining global \"%s\"", name);
   }
-  if (!isextern) {
+  if (!isextern && precompiled_module) {
     add_global_symbol(name, type->l);
+    add_symbol_to_module(name, precompiled_module);
   }
 }
 struct rtv *defglobal(struct val *l) {

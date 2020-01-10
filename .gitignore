@@ -6,3 +6,4 @@ LOG
 old*
 *.o
 confld.sh
+*dlr_pc.*

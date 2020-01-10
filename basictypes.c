@@ -4,9 +4,14 @@
 #include "fun.h"
 #include "jit.h"
 
+#include <assert.h>
 #include <stddef.h>
 
-struct typeinf *basictypes_integer, *basictypes_alias, *basictypes_pointer;
+struct typeinf *basictypes_integer, *basictypes_alias, *basictypes_pointer,
+    *basictypes_float;
+
+int is_int(struct rtt *a);
+int is_float(struct rtt *a);
 
 static const char *print_alias_type(struct type *t) {
   return t->prop.alias->name;
@@ -30,11 +35,23 @@ static const char *print_integer_type(struct type *t) {
   case 64:
     size = "64";
     break;
+  default:
+    assert(0);
   }
   if (a & 0x100) {
     return print_to_mem("i%s", size);
   } else {
     return print_to_mem("u%s", size);
+  }
+}
+static const char *print_float_type(struct type *t) {
+  switch (t->prop.num) {
+  case 1:
+    return "float";
+  case 2:
+    return "double";
+  default:
+    assert(0);
   }
 }
 static const char *print_pointer_type(struct type *t) {
@@ -88,7 +105,7 @@ struct rtv *convert_pointer_types(struct rtv *v, struct rtt *to,
   return NULL;
 }
 
-struct rtv *convert_integers(struct rtv *v, struct rtt *to, int is_explicit) {
+struct rtv *convert_numbers(struct rtv *v, struct rtt *to, int is_explicit) {
   if (v->t.info == basictypes_integer && to->t.info == basictypes_integer) {
     /* TODO: pay attention to signedness */
     if (!is_explicit && ((v->t.prop.num & 0xff) > (to->t.prop.num & 0xff))) {
@@ -100,6 +117,31 @@ struct rtv *convert_integers(struct rtv *v, struct rtt *to, int is_explicit) {
     c->v = LLVMBuildIntCast(bldr, v->v, to->l, "intcast");
     return c;
   }
+  if (v->t.info == basictypes_float && to->t.info == basictypes_float) {
+    if (!is_explicit && (v->t.prop.num < to->t.prop.num)) {
+      return NULL;
+    }
+    struct rtv *c;
+    c = copy_rtv(*v);
+    c->t.prop.num = to->t.prop.num;
+    c->v = LLVMBuildFPCast(bldr, v->v, to->l, "floatcast");
+    return c;
+  }
+  if (v->t.info == basictypes_integer && to->t.info == basictypes_float) {
+    if (v->t.prop.num & 0x100) {
+      return make_rtv(LLVMBuildSIToFP(bldr, v->v, to->l, "sitofp"), to);
+    } else {
+      return make_rtv(LLVMBuildUIToFP(bldr, v->v, to->l, "uitofp"), to);
+    }
+  }
+  if (v->t.info == basictypes_float && to->t.info == basictypes_integer &&
+      is_explicit) {
+    if (to->t.prop.num & 0x100) {
+      return make_rtv(LLVMBuildFPToSI(bldr, v->v, to->l, "fptosi"), to);
+    } else {
+      return make_rtv(LLVMBuildFPToUI(bldr, v->v, to->l, "fptoui"), to);
+    }
+  }
   return NULL;
 }
 
@@ -107,6 +149,7 @@ void init_basictypes() {
   basictypes_alias = register_type_class("alias", print_alias_type);
   basictypes_integer = register_type_class("integer", print_integer_type);
   basictypes_pointer = register_type_class("pointer", print_pointer_type);
+  basictypes_float = register_type_class("float", print_float_type);
 
   lower_macroproto("create_alias");
   lower_macroproto("ptr_deref");
@@ -128,10 +171,12 @@ void init_basictypes() {
   register_type("u32", "integer_type", (void *)(0 << 8 | 32));
   register_type("u64", "integer_type", (void *)(0 << 8 | 64));
   register_type("ptr", "pointer_type", NULL);
+  register_type("float", "float_type", (void *)1);
+  register_type("double", "float_type", (void *)2);
 
   lower_register_type_converter("convert_pointer_types");
   lower_register_type_converter("convert_alias_unwrap");
-  lower_register_type_converter("convert_integers");
+  lower_register_type_converter("convert_numbers");
 }
 
 void end_basictypes() {}
@@ -213,23 +258,56 @@ struct rtt *lower_pointer_type(struct rtt *t) {
   *p = t->t;
   return make_rtt(LLVMPointerType(t->l, 0), basictypes_pointer, p, 0);
 }
-void expect_same_integer(struct rtv *a, struct rtv *b, struct val *errloc) {
-  if (a->t.info != basictypes_integer || b->t.info != basictypes_integer) {
-    compiler_error(errloc, "expected two integers");
-  }
-  /* TODO: handle signedness correctly */
-  if ((a->t.prop.num & 0xff) == (b->t.prop.num & 0xff)) {
+void expect_same_number(struct rtv *a, struct rtv *b, struct val *errloc) {
+  if (a->t.info == basictypes_integer && b->t.info == basictypes_integer) {
+    /* TODO: handle signedness correctly */
+    if ((a->t.prop.num & 0xff) == (b->t.prop.num & 0xff)) {
+      return;
+    }
+    if ((a->t.prop.num & 0xff) < (b->t.prop.num & 0xff)) {
+      *a = *convert_type(a, make_rtt_from_type(LLVMTypeOf(b->v), b->t), 0);
+    } else {
+      *b = *convert_type(b, make_rtt_from_type(LLVMTypeOf(a->v), a->t), 0);
+    }
     return;
   }
-  if ((a->t.prop.num & 0xff) < (b->t.prop.num & 0xff)) {
-    struct rtv *newa;
-    newa = convert_type(a, make_rtt_from_type(LLVMTypeOf(b->v), b->t), 0);
-    *a = *newa;
-  } else {
-    struct rtv *newb;
-    newb = convert_type(b, make_rtt_from_type(LLVMTypeOf(a->v), a->t), 0);
-    *b = *newb;
+  if (a->t.info == basictypes_float && b->t.info == basictypes_float) {
+    if (a->t.prop.num == b->t.prop.num) {
+      return;
+    }
+    if (a->t.prop.num < b->t.prop.num) {
+      *a = *convert_type(a, make_rtt_from_type(LLVMTypeOf(b->v), b->t), 0);
+    } else {
+      *b = *convert_type(b, make_rtt_from_type(LLVMTypeOf(a->v), a->t), 0);
+    }
+    return;
   }
+  if (a->t.info == basictypes_float && b->t.info == basictypes_integer) {
+    *b = *convert_type(b, unwrap_type(a), 0);
+    return;
+  }
+  if (a->t.info == basictypes_integer && b->t.info == basictypes_float) {
+    *a = *convert_type(a, unwrap_type(b), 0);
+    return;
+  }
+  compiler_error(errloc, "expected two numbers");
+}
+
+struct rtt *float_type(struct val *e, void *prop) {
+  (void)e;
+  return lower_float_type((int)(uint64_t)prop);
+}
+struct rtt *lower_float_type(int size) {
+  LLVMTypeRef t;
+  switch (size) {
+  case 1:
+    t = LLVMFloatType();
+    break;
+  case 2:
+    t = LLVMDoubleType();
+    break;
+  }
+  return make_rtt(t, basictypes_float, (void *)(uint64_t)size, 0);
 }
 
 struct rtt *pointer_type(struct val *e, void *prop) {
