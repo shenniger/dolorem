@@ -19,7 +19,8 @@ funproto LLVMAddIncoming ((LLVMValueRef phi) ((ptr LLVMValueRef) values) ((ptr L
 funproto LLVMBuildAdd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildSub ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildMul ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
-funproto LLVMBuildDiv ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildUDiv ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
+funproto LLVMBuildSDiv ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildFAdd ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildFSub ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 funproto LLVMBuildFMul ((ptr bldr) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
@@ -146,7 +147,7 @@ defmacro comparison-op
 arithmetic-op + LLVMBuildAdd LLVMBuildFAdd "add";
 arithmetic-op - LLVMBuildSub LLVMBuildFSub "sub";
 arithmetic-op * LLVMBuildMul LLVMBuildFMul "mul";
-arithmetic-op / LLVMBuildDiv LLVMBuildFDiv "div";
+arithmetic-op / LLVMBuildSDiv LLVMBuildFDiv "div"; # TODO: signedness
 arithmetic-op && LLVMBuildAnd () "and";
 arithmetic-op || LLVMBuildOr () "or";
 arithmetic-op << LLVMBuildShl () "shr";
