@@ -29,3 +29,7 @@ void AddGlobalDef(LLVMModuleRef m, LLVMTypeRef ty, const char *name) {
   new GlobalVariable(*unwrap(m), t, false, GlobalValue::ExternalLinkage, init,
                      name);
 }
+
+long GetTypeSize(LLVMModuleRef m, LLVMTypeRef ty) {
+  return DataLayout(unwrap(m)).getTypeAllocSize(unwrap(ty));
+}

@@ -10,9 +10,16 @@
 void init_eval() {
   lower_macroproto("progn");
   lower_macroproto("scope");
+  lower_macroproto("call_funptr");
+  lower_macroproto("funptr_to");
 }
 void end_eval() {}
 
+struct rtv *make_int_const(long i) {
+  return make_rtv(
+      LLVMConstInt(LLVMInt64Type(), i, 0),
+      make_rtt(LLVMInt64Type(), basictypes_integer, (void *)(0x100 & 64), 0));
+}
 struct rtv *eval(struct val *e) {
   switch (e->T) {
   case tyCons: {
@@ -37,9 +44,7 @@ struct rtv *eval(struct val *e) {
     }
   }
   case tyInt:
-    return make_rtv(
-        LLVMConstInt(LLVMInt64Type(), e->V.I, 0),
-        make_rtt(LLVMInt64Type(), basictypes_integer, (void *)(0x100 & 64), 0));
+    return make_int_const(e->V.I);
   case tyFloat:
     return make_rtv(
         LLVMConstReal(LLVMDoubleType(), e->V.F),
@@ -99,26 +104,26 @@ struct rtv *scope(struct val *e) {
   return r;
 }
 
-struct rtv *funcall(struct fun *a, struct val *args) {
+struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
+                          struct val *args) {
   LLVMValueRef *v;
-  LLVMValueRef fun;
   struct rtv r;
   long i;
-  if (count_len(args) != a->type.nparms) {
-    compiler_error(args, "expected %i arguments, found %i", a->type.nparms,
+  if (count_len(args) != funtype.nparms) {
+    compiler_error(args, "expected %i arguments, found %i", funtype.nparms,
                    count_len(args));
   }
-  if (a->type.nparms) {
-    v = get_mem(sizeof(LLVMValueRef *) * a->type.nparms);
+  if (funtype.nparms) {
+    v = get_mem(sizeof(LLVMValueRef *) * funtype.nparms);
     i = 0;
     do {
       struct rtv *c;
       struct rtv *from;
       from = eval(car(args));
-      c = convert_type(from, &a->type.parms[i].t, 0);
+      c = convert_type(from, &funtype.parms[i].t, 0);
       if (!c) {
         compiler_error(car(args), "couldn't convert type \"%s\" to \"%s\"",
-                       print_type(&from->t), print_type(&a->type.parms[i].t.t));
+                       print_type(&from->t), print_type(&funtype.parms[i].t.t));
       }
       v[i] = c->v;
       ++i;
@@ -126,16 +131,20 @@ struct rtv *funcall(struct fun *a, struct val *args) {
   } else {
     v = NULL;
   }
+  r.v = LLVMBuildCall2(bldr, funtype.funtype, fun, v, funtype.nparms,
+                       funtype.ret.t.info ? print_to_mem("funcall_%s", funtype)
+                                          : "");
+  r.t = funtype.ret.t;
+  return copy_rtv(r);
+}
+struct rtv *funcall(struct fun *a, struct val *args) {
+  LLVMValueRef fun;
   fun = LLVMGetNamedFunction(mod, a->name);
   if (!fun) {
     fun = LLVMAddFunction(mod, a->name, a->type.funtype);
     fun_set_proper_parm_names(a, fun);
   }
-  r.v = LLVMBuildCall2(bldr, a->type.funtype, fun, v, a->type.nparms,
-                       a->type.ret.t.info ? print_to_mem("funcall_%s", a->name)
-                                          : "");
-  r.t = a->type.ret.t;
-  return copy_rtv(r);
+  return lower_funcall(fun, a->type, args);
 }
 
 struct rtv *call_fun_macro(const char *name, struct val *e) {
@@ -150,4 +159,38 @@ struct rtv *call_type_converter(const char *name, struct rtv *value,
   return ((struct rtv * (*)(struct rtv * value, struct rtt * to,
                             int is_explicit_cast))resolve_sym(name))(
       value, to, is_explicit_cast);
+}
+
+struct rtv *funptr_to(struct val *e) {
+  struct val *name;
+  LLVMValueRef fun;
+  struct fun *f;
+  name = car(e);
+  if (is_nil(name) || !is_nil(cdr(e))) {
+    compiler_error(e, "expected exactly one argument to \"funptr-to\"");
+  }
+  if (name->T != tyIdent) {
+    compiler_error(name, "expected function name");
+  }
+  f = lookup_fun(name->V.S);
+  if (!f) {
+    compiler_error(e, "unknown function \"%s\"", name->V.S);
+  }
+  fun = LLVMGetNamedFunction(mod, name->V.S);
+  if (!fun) {
+    fun = LLVMAddFunction(mod, f->name, f->type.funtype);
+    fun_set_proper_parm_names(f, fun);
+  }
+  return make_rtv(fun, make_rtt(f->type.funtype, funptr, &f->type, 0));
+}
+struct rtv *call_funptr(struct val *e) {
+  struct rtv *fptr;
+  struct val *args;
+  fptr = eval(car(e));
+  args = cdr(e);
+  if (fptr->t.info != funptr) {
+    compiler_error(car(e), "expected function pointer type, found: %s",
+                   print_type(&fptr->t));
+  }
+  return lower_funcall(fptr->v, *fptr->t.prop.fun, args);
 }

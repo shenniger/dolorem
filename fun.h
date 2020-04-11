@@ -59,6 +59,7 @@ void init_fun();
 void end_fun();
 
 extern struct typealias *rt_val_type, *rt_rtt_type, *rt_rtv_type;
+extern struct typeinf *funptr;
 
 LLVMTypeRef fun_type_to_llvm(struct funtypeprop a);
 void fun_set_proper_parm_names(struct fun *f, LLVMValueRef fun);

@@ -41,6 +41,8 @@ funproto car ((val a)) val;
 funproto cdr ((val a)) val;
 funproto eval ((val a)) rtv;
 funproto unwrap-llvm-value ((rtv a)) ptr;
+funproto unwrap-type-t ((rtv a)) ptr;
+funproto sizeof-type ((rtt a)) i64;
 funproto convert-type ((rtv a) (rtt t) (i32 is-unsigned)) rtv;
 funproto lower-integer-type ((i32 size) (i32 is-unsigned)) rtt;
 funproto unwrap-type ((rtv a)) rtt;
@@ -56,6 +58,7 @@ funproto copy-symbol-to-module ((str symbol) (LLVMModuleRef mod)) void;
 funproto expect-same-number ((rtv a) (rtv b) (val errloc)) void;
 funproto call-fun-macro ((str name) (val a)) rtv;
 funproto compiler-error ((val v) (str msg)) void;
+funproto make-int-const ((i64 a)) rtv;
 funproto is-int ((rtt v)) i32;
 funproto is-float ((rtt v)) i32;
 
@@ -216,6 +219,9 @@ defmacro continue {
   LLVMPositionBuilderAtEnd bldr (LLVMAppendBasicBlock curllvmfn "unreachable_dummy_continue_block");
  (empty-rtv)
 };
+
+# Sizeof
+defmacro sizeof (make-int-const (sizeof-type (eval-type (car args))));
 
 # Linker control
 funproto dlopen ((str a) (i32 mode)) ptr;

@@ -17,6 +17,8 @@ extern "C" {
  */
 void AddGlobalDef(LLVMModuleRef m, LLVMTypeRef ty, const char *name);
 
+long GetTypeSize(LLVMModuleRef m, LLVMTypeRef ty);
+
 #ifdef __cplusplus
 }
 #endif

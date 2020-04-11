@@ -32,6 +32,7 @@ struct rtv { /* run-time value */
 };
 
 typedef const char *(*type_printer_fun)(struct type *t);
+typedef long (*type_sizeof_fun)(struct type *t);
 
 struct typeinf {
   const char *name;
@@ -64,6 +65,7 @@ struct rtt *eval_type(struct val *e);
 struct rtv *convert(struct val *e);
 struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit);
 const char *print_type(struct type *t);
+long sizeof_type(struct rtt *a);
 void register_type(const char *name, const char *macroname, void *prop);
 struct typeinf *register_type_class(const char *name, type_printer_fun printer);
 inline struct rtt *copy_rtt(struct rtt a) {
@@ -112,6 +114,7 @@ inline struct rtv *empty_rtv() {
 inline struct rtt *unwrap_type(struct rtv *a) {
   return make_rtt_from_type(LLVMTypeOf(a->v), a->t);
 }
+inline struct type *unwrap_type_t(struct rtv *a) { return &a->t; }
 inline LLVMTypeRef unwrap_llvm_type(struct rtt *a) { return a->l; }
 
 #endif

@@ -1,6 +1,7 @@
 #include "type.h"
 
 #include "eval.h"
+#include "llvmext.h"
 #include <assert.h>
 #include <string.h>
 
@@ -21,15 +22,20 @@ struct rtv *empty_rtv();
 struct rtv *make_twin_rtv(LLVMValueRef v, struct rtv *old);
 struct rtt *unwrap_type(struct rtv *a);
 LLVMTypeRef unwrap_llvm_type(struct rtt *a);
+struct type *unwrap_type_t(struct rtv *a);
 
 struct rtv *convert_equal_types(struct rtv *v, struct rtt *to,
                                 int is_explicit) {
   (void)is_explicit;
   /* TODO: This rule is too lenient and doesn't handle volatility and constness
    * correctly. */
-  if (v->t.info == to->t.info &&
-      memcmp(&v->t.prop, &to->t.prop, sizeof(union typeprop)) == 0) {
-    return v;
+  if (v->t.info == to->t.info) {
+    if (v->t.info == funptr) {
+      return v; /* TODO!!! */
+    }
+    if (memcmp(&v->t.prop, &to->t.prop, sizeof(union typeprop)) == 0) {
+      return v;
+    }
   }
   return NULL;
 }
@@ -143,3 +149,4 @@ const char *print_type(struct type *t) {
   }
   return t->info->printer(t);
 }
+long sizeof_type(struct rtt *t) { return GetTypeSize(mod, t->l); }

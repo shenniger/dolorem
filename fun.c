@@ -16,6 +16,9 @@ struct fun *curfn;
 LLVMValueRef curllvmfn;
 
 struct typealias *rt_val_type, *rt_rtt_type, *rt_rtv_type;
+struct typeinf *funptr;
+
+static const char *print_funptr(struct type *t);
 
 void init_fun() {
   map_funs = hashmap_new();
@@ -27,6 +30,10 @@ void init_fun() {
   rt_rtt_type = lower_create_opaque(LLVMPointerType(LLVMInt8Type(), 0), "rtt");
   rt_rtv_type = lower_create_opaque(LLVMPointerType(LLVMInt8Type(), 0), "rtv");
 
+  funptr = register_type_class("funptr", print_funptr);
+  lower_typemacroproto("funptr_type");
+  register_type("funptr", "funptr_type", NULL);
+
   lower_macroproto("funproto");
   lower_macroproto("defun");
   lower_macroproto("macroproto");
@@ -37,6 +44,19 @@ void init_fun() {
   lower_macroproto("convert"); /* from type.c */
 }
 void end_fun() { hashmap_free(map_funs); }
+
+static const char *print_funptr(struct type *t) {
+  const char *s;
+  long i;
+  s = "funptr (";
+  for (i = 0; i < t->prop.fun->nparms; ++i) {
+    s = print_to_mem(i ? "%s (%s %s)" : "%s(%s %s)", s,
+                     print_type(&t->prop.fun->parms[i].t.t),
+                     t->prop.fun->parms[i].name);
+  }
+  s = print_to_mem("%s) %s", s, print_type(&t->prop.fun->ret.t));
+  return s;
+}
 
 LLVMTypeRef fun_type_to_llvm(struct funtypeprop a) {
   LLVMTypeRef *parms = alloca(a.nparms * sizeof(LLVMTypeRef));
@@ -319,4 +339,24 @@ struct rtv *deftypemacro(struct val *l) {
   }
   funbody(lower_typemacroproto(name->V.S), body);
   return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+}
+
+struct rtt *funptr_type(struct val *l) {
+  struct val *parms, *ret;
+  struct funtypeprop *f;
+  parms = car(l);
+  if (parms->T != tyCons) {
+    compiler_error(parms,
+                   "expected list of parameters in function pointer type");
+  }
+  ret = car(cdr(l));
+  if (!is_nil(cdr(cdr(l)))) {
+    compiler_error(l, "more arguments than expected in function pointer type");
+  }
+
+  f = get_mem(sizeof(struct funtypeprop));
+  f->ret = *eval_type(ret);
+  f->parms = parse_parms(*parms, &f->nparms);
+  f->funtype = fun_type_to_llvm(*f);
+  return make_rtt(LLVMPointerType(f->funtype, 0), funptr, f, 0);
 }
