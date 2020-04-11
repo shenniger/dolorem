@@ -20,6 +20,10 @@ void AddGlobalDef(LLVMModuleRef m, LLVMTypeRef ty, const char *name) {
     init = ConstantInt::get(t, 0);
   } else if (t->isPointerTy()) {
     init = ConstantPointerNull::get(cast<PointerType>(t));
+  } else if (t->isFloatingPointTy()) {
+    init = ConstantFP::get(t, 0.0);
+  } else {
+    assert(!"global of type unknown to AddGlobalDef");
   }
 
   new GlobalVariable(*unwrap(m), t, false, GlobalValue::ExternalLinkage, init,

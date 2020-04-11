@@ -283,11 +283,11 @@ void expect_same_number(struct rtv *a, struct rtv *b, struct val *errloc) {
     return;
   }
   if (a->t.info == basictypes_float && b->t.info == basictypes_integer) {
-    *b = *convert_type(b, unwrap_type(a), 0);
+    *b = *convert_type(b, unwrap_type(a), 1);
     return;
   }
   if (a->t.info == basictypes_integer && b->t.info == basictypes_float) {
-    *a = *convert_type(a, unwrap_type(b), 0);
+    *a = *convert_type(a, unwrap_type(b), 1);
     return;
   }
   compiler_error(errloc, "expected two numbers");
