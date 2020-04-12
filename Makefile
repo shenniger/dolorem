@@ -16,7 +16,7 @@ LLVMPREFIX ?= ~/local
 llvmext.o: llvmext.cpp llvmext.h
 	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 -isystem $(LLVMPREFIX)/include  $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti
 
-libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o
+libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o structs.o
 	$(CXX) $^ -o $@ -shared
 
 dolorem: main.o libdolorem.so

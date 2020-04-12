@@ -250,6 +250,45 @@ char *readFile(const char *name, size_t *len) {
   return s;
 }
 
+static void prepare_string(char *s, struct val *e) {
+  char *r, *w;
+  for (r = s, w = s; *r;) {
+    if (*r == '\"') {
+      for (++r; *r && *r != '\"'; ++r)
+        ;
+      if (!*r) {
+        compiler_error_internal(
+            "prepare_string found invalid multi-part string");
+      }
+      ++r;
+      continue;
+    }
+    if (*r == '\\') {
+      switch (*++r) {
+      case '\\':
+        *w++ = '\\';
+        break;
+      case '\"':
+        *w++ = '\"';
+        break;
+      case 'n':
+        *w++ = '\n';
+        break;
+      case 't':
+        *w++ = '\t';
+        break;
+      /* TODO: more control sequences */
+      default:
+        compiler_error(e, "invalid control sequence");
+      }
+      ++r;
+      continue;
+    }
+    *w++ = *r++;
+  }
+  *w = 0;
+}
+
 struct SourceFile {
   const char *Name;
   const char *Content;
@@ -355,6 +394,15 @@ unsigned int count_len(struct val *l) {
 
 static void actual_read(struct val *v, char *s, unsigned short fileidx,
                         char *filebegin) {
+  /*
+   * Abandon all hope, ye who enter here.
+   *
+   * No, seriously, please refer to the technical documentation
+   * of this code: https://bit.ly/39V5unK
+   *
+   * And never forget: https://xkcd.com/1421
+   */
+
   struct val r;
   struct val prototype;
   struct cons *groupb;
@@ -440,8 +488,27 @@ resume_loop:
           compiler_error(&r, "missing closing '\"'");
         }
       }
-      *s = 0;
       ++s;
+      while (*s == '\\') {
+        for (; *s != '"'; ++s) {
+          if (!*s) {
+            compiler_error(&r,
+                           "expected next part of string literal, found EOF");
+          } else if (*s != '\t' && *s != ' ' && *s != '\n' && *s != '\\') {
+            compiler_error(&r, "expected next part of string literal or "
+                               "whitespace, found something else");
+          }
+        }
+        ++s;
+        for (; *s != '"'; ++s) {
+          if (!*s) {
+            compiler_error(&r, "missing closing '\"'");
+          }
+        }
+        ++s;
+      }
+      s[-1] = 0;
+      prepare_string(r.V.S, &r);
       goto insert_part;
     case '#':
       for (; *s != '\n' && *s; ++s)

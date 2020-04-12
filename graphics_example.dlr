@@ -1,15 +1,19 @@
 include "def.dlr";
 include "sdl2.dlr";
-
 funproto puts (str a;) void;
 funproto printf (str a; i32 x;) void;
 
+defstruct MyFunStruct (
+  i32 a;
+  i64 b;
+);
+
 defun draw (SDL_Renderer renderer;) void {
-  SDL_SetRenderDrawColor renderer 255 255 255 0;
-  SDL_RenderClear renderer;
-  SDL_SetRenderDrawColor renderer 255 0 0 0;
-  SDL_RenderDrawLine renderer 0 0 800 600;
-  SDL_RenderPresent renderer;
+  #SDL_SetRenderDrawColor renderer 255 255 255 0;
+  #SDL_RenderClear renderer;
+  #SDL_SetRenderDrawColor renderer 255 0 0 0;
+  #SDL_RenderDrawLine renderer 0 0 800 600;
+  #SDL_RenderPresent renderer;
 };
 
 defun call-draw-funptr (((funptr (SDL_Renderer renderer;) void) a) SDL_Renderer renderer;) void {
@@ -17,19 +21,30 @@ defun call-draw-funptr (((funptr (SDL_Renderer renderer;) void) a) SDL_Renderer 
 };
 
 defun main () i32 {
-  printf "%i" (sizeof (ptr i32)); puts "";
-  := running 1;
-  := window (SDL_CreateWindow "Dolorem" 0 0 800 600 4);
-  := renderer (SDL_CreateRenderer window -1 1);
-  while running {
-    := draw-fun (funptr-to draw);
-    call-draw-funptr draw-fun renderer;
-    cond (> (SDL_GetTicks) 3000) {
-      assign running 0;
-    };
-  };
-  SDL_DestroyRenderer renderer;
-  SDL_DestroyWindow window;
+  #printf "ABCDEF: %i\n\n\nHahaahaa.\n"\
+  #    "More, more, more!!!\n"\
+  #    "Hahahahahahahaahahahahaahahahaha!!!!!111!!\n" (sizeof (ptr i32));
+  := running 0;
+  (progn (var (ptr i64) run-ptr) )
+  (progn (assign run-ptr (ptr-to running)) )
+  (progn (assign (ptr-deref run-ptr) 5) )
+  (assign (ptr-deref (ptr-to running)) 10)
+  printf "hier: %i\n" running;
+  var MyFunStruct b;
+  assign (memb b a) 10;
+  assign (memb b b) (+ 12 (memb b a));
+  printf "hier: %i\n" (memb b b);
+  #:= window (SDL_CreateWindow "Dolorem" 0 0 800 600 4);
+  #:= renderer (SDL_CreateRenderer window -1 1);
+  #while running {
+  #  := draw-fun (funptr-to draw);
+  #  call-draw-funptr draw-fun renderer;
+  #  cond (> (SDL_GetTicks) 3000) {
+  #    assign running 0;
+  #  };
+  #};
+  #SDL_DestroyRenderer renderer;
+  #SDL_DestroyWindow window;
  0
 };
 

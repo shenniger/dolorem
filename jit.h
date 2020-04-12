@@ -20,7 +20,8 @@ extern LLVMOrcSymbolResolverFn orcresolver;
 extern map_t map_modules;
 
 void handle_llvm_error(LLVMErrorRef e);
-uint64_t resolve_sym(const char *name);
+struct fun;
+uint64_t resolve_sym(struct fun *a);
 void init_jit();
 void begin_new_function();
 void end_function(const char *name);

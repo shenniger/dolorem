@@ -16,7 +16,7 @@ void init_quote() {
 void end_quote() {}
 
 static struct rtv *val_rtv(LLVMValueRef a) {
-  return make_rtv(a, lower_alias_type(rt_val_type));
+  return make_rtv(a, lower_alias_type(rt_val_type), vfR);
 }
 
 static LLVMValueRef fun_cons, fun_nil, fun_int, fun_string, fun_ident;
@@ -57,7 +57,7 @@ LLVMValueRef lower_quote(struct val *e, int quasi) {
       f = car(e);
       if (quasi && f->T == tyIdent && strcmp(f->V.S, "quasiunquote") == 0) {
         struct rtv *res, *n;
-        res = eval(car(cdr(e)));
+        res = prepare_read(eval(car(cdr(e))));
         n = convert_type(res, lower_alias_type(rt_val_type), 0);
         return n->v;
       }

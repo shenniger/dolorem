@@ -8,12 +8,14 @@
 map_t map_types;
 map_t map_type_classes;
 
+struct rtv null_rtv;
+
 struct type_converter *type_converter_list;
 struct type_converter *type_converter_last;
 
 struct rtt *make_rtt(LLVMTypeRef r, struct typeinf *info, void *prop,
                      long type_flags);
-struct rtv *make_rtv(LLVMValueRef v, struct rtt *t);
+struct rtv *make_rtv(LLVMValueRef v, struct rtt *t, uint32_t value_flags);
 struct rtt *copy_rtt(struct rtt a);
 struct rtv *copy_rtv(struct rtv a);
 LLVMValueRef unwrap_llvm_value(struct rtv *a);
@@ -44,7 +46,6 @@ void init_types() {
   map_types = hashmap_new();
   map_type_classes = hashmap_new();
   assert(map_type_classes);
-  lower_register_type_converter("convert_equal_types");
 }
 void end_types() {
   hashmap_free(map_type_classes);
@@ -67,12 +68,12 @@ struct typeinf *register_type_class(const char *name,
   }
   return n;
 }
-void register_type(const char *name, const char *macroname, void *prop) {
+void register_type(const char *name, struct fun *macro, void *prop) {
   struct type_name *n;
   void *dummy;
   n = get_mem(sizeof(struct type_name));
   n->name = name;
-  n->macroname = macroname;
+  n->macro = macro;
   n->prop = prop;
   if (hashmap_get(map_types, name, &dummy) == MAP_OK) {
     compiler_error_internal(
@@ -107,11 +108,20 @@ struct rtt *eval_type(struct val *e) {
   if (hashmap_get(map_types, e->V.S, (void **)&n) != MAP_OK) {
     compiler_error(e, "unknown type: \"%s\"", e->V.S);
   }
-  return call_type_macro(n->macroname, l, n->prop);
+  return call_type_macro(n->macro, l, n->prop);
+}
+
+struct rtv *prepare_read(struct rtv *v) {
+  if (v->t.value_flags & vfL) {
+    return make_rtv(LLVMBuildLoad(bldr, v->v, "lval_load"),
+                    make_rtt_from_type(NULL, v->t), vfR);
+  }
+  return v;
 }
 
 struct rtv *register_type_converter(struct val *l) {
   struct val *name;
+  struct fun *f;
   name = car(l);
   if (!is_nil(cdr(l))) {
     compiler_error(cdr(l), "excess elements in \"register-type-converter\"");
@@ -119,10 +129,13 @@ struct rtv *register_type_converter(struct val *l) {
   if (name->T != tyIdent) {
     compiler_error(name, "expected identifier");
   }
-  lower_register_type_converter(name->V.S);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  if (!((f = lookup_fun(name->V.S)))) {
+    compiler_error(name, "unknown function: \"%s\"", name->V.S);
+  }
+  lower_register_type_converter(f);
+  return &null_rtv;
 }
-void lower_register_type_converter(const char *name) {
+void lower_register_type_converter(struct fun *f) {
   if (!type_converter_last) {
     type_converter_list = get_mem(sizeof(struct type_converter));
     type_converter_last = type_converter_list;
@@ -130,14 +143,14 @@ void lower_register_type_converter(const char *name) {
     type_converter_last->next = get_mem(sizeof(struct type_converter));
     type_converter_last = type_converter_last->next;
   }
-  type_converter_last->name = name;
+  type_converter_last->f = f;
 }
 
 struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit_cast) {
   struct type_converter *t;
   struct rtv *r;
   for (t = type_converter_list; t; t = t->next) {
-    if ((r = call_type_converter(t->name, a, to, is_explicit_cast))) {
+    if ((r = call_type_converter(t->f, a, to, is_explicit_cast))) {
       return r;
     }
   }

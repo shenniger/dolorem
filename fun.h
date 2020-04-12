@@ -20,7 +20,7 @@ struct funtypeprop {
   LLVMTypeRef funtype;
 };
 
-enum { ffImplemented = 1, ffMacro = 2, ffTypeMacro = 4 };
+enum { ffImplemented = 1, ffMacro = 2, ffTypeMacro = 4, ffTypeConverter = 8 };
 
 struct funvar {
   unsigned int hashed_name;
@@ -39,6 +39,7 @@ struct fun {
   struct funtypeprop type;
   const char *name;
   struct funscope *scope;
+  uint64_t ptr;
 };
 
 struct aliasres {
@@ -75,6 +76,9 @@ struct rtv *defmacro(struct val *l);
 struct fun *lower_typemacroproto(const char *name);
 struct rtv *typemacroproto(struct val *l);
 struct rtv *deftypemacro(struct val *l);
+struct fun *lower_typeconverterproto(const char *name);
+struct rtv *typeconverterproto(struct val *l);
+struct rtv *deftypeconverter(struct val *l);
 struct rtv *compiledfunction(struct val *l);
 
 void funbody(struct fun *f, struct val *body);

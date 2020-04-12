@@ -12,13 +12,21 @@ void init_eval() {
   lower_macroproto("scope");
   lower_macroproto("call_funptr");
   lower_macroproto("funptr_to");
+  lower_macroproto("gdb_break_here");
 }
 void end_eval() {}
+
+struct rtv *gdb_break_here(struct val *e) {
+  /* for gdb */
+  (void)e;
+  return &null_rtv;
+}
 
 struct rtv *make_int_const(long i) {
   return make_rtv(
       LLVMConstInt(LLVMInt64Type(), i, 0),
-      make_rtt(LLVMInt64Type(), basictypes_integer, (void *)(0x100 & 64), 0));
+      make_rtt(LLVMInt64Type(), basictypes_integer, (void *)(0x100 | 64), 0),
+      vfR);
 }
 struct rtv *eval(struct val *e) {
   switch (e->T) {
@@ -38,7 +46,7 @@ struct rtv *eval(struct val *e) {
       compiler_error(e, "attempt to directly call type macro");
     }
     if (f->type.flags & ffMacro) {
-      return call_fun_macro(f->name, args);
+      return call_fun_macro(f, args);
     } else {
       return funcall(f, args);
     }
@@ -48,14 +56,15 @@ struct rtv *eval(struct val *e) {
   case tyFloat:
     return make_rtv(
         LLVMConstReal(LLVMDoubleType(), e->V.F),
-        make_rtt(LLVMDoubleType(), basictypes_float, (void *)0x2, 0));
+        make_rtt(LLVMDoubleType(), basictypes_float, (void *)0x2, 0), vfR);
   case tyIdent: {
     struct funvar *f;
     struct global *g;
     if (curfn && ((f = lookup_in_fun_scope(curfn, e->V.S)))) {
       struct rtv n;
       n = f->v;
-      n.v = LLVMBuildLoad(bldr, f->v.v, e->V.S);
+      n.v = f->v.v;
+      n.t.value_flags = vfL;
       return copy_rtv(n);
     }
     if (hashmap_get(map_globals, e->V.S, (void **)&g) == MAP_OK) {
@@ -66,14 +75,15 @@ struct rtv *eval(struct val *e) {
       if (!v) {
         v = LLVMAddGlobal(mod, g->type->l, g->name);
       }
-      n.v = LLVMBuildLoad(bldr, v, e->V.S);
+      n.v = v;
+      n.t.value_flags = vfL;
       return copy_rtv(n);
     }
     compiler_error(e, "unknown identifier \"%s\"", e->V.S);
   }
   case tyString:
     return make_rtv(LLVMBuildGlobalStringPtr(bldr, e->V.S, "strliteral"),
-                    lower_pointer_type(lower_integer_type(8, 0)));
+                    lower_pointer_type(lower_integer_type(8, 0)), vfR);
   default:
     assert(!"unknown type");
   }
@@ -82,7 +92,7 @@ struct rtv *eval(struct val *e) {
 struct rtv *progn(struct val *e) {
   struct rtv *v;
   if (is_nil(e)) {
-    return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+    return &null_rtv;
   }
   do {
     v = eval(car(e));
@@ -119,7 +129,7 @@ struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
     do {
       struct rtv *c;
       struct rtv *from;
-      from = eval(car(args));
+      from = prepare_read(eval(car(args)));
       c = convert_type(from, &funtype.parms[i].t, 0);
       if (!c) {
         compiler_error(car(args), "couldn't convert type \"%s\" to \"%s\"",
@@ -132,9 +142,11 @@ struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
     v = NULL;
   }
   r.v = LLVMBuildCall2(bldr, funtype.funtype, fun, v, funtype.nparms,
-                       funtype.ret.t.info ? print_to_mem("funcall_%s", funtype)
-                                          : "");
+                       funtype.ret.t.info
+                           ? print_to_mem("funcall_%s", LLVMGetValueName(fun))
+                           : "");
   r.t = funtype.ret.t;
+  r.t.value_flags = vfR;
   return copy_rtv(r);
 }
 struct rtv *funcall(struct fun *a, struct val *args) {
@@ -147,14 +159,14 @@ struct rtv *funcall(struct fun *a, struct val *args) {
   return lower_funcall(fun, a->type, args);
 }
 
-struct rtv *call_fun_macro(const char *name, struct val *e) {
+struct rtv *call_fun_macro(struct fun *name, struct val *e) {
   return ((struct rtv * (*)(struct val * e))resolve_sym(name))(e);
 }
-struct rtt *call_type_macro(const char *name, struct val *e, void *prop) {
+struct rtt *call_type_macro(struct fun *name, struct val *e, void *prop) {
   return ((struct rtt * (*)(struct val * e, void *prop))resolve_sym(name))(
       e, prop);
 }
-struct rtv *call_type_converter(const char *name, struct rtv *value,
+struct rtv *call_type_converter(struct fun *name, struct rtv *value,
                                 struct rtt *to, int is_explicit_cast) {
   return ((struct rtv * (*)(struct rtv * value, struct rtt * to,
                             int is_explicit_cast))resolve_sym(name))(
@@ -181,12 +193,12 @@ struct rtv *funptr_to(struct val *e) {
     fun = LLVMAddFunction(mod, f->name, f->type.funtype);
     fun_set_proper_parm_names(f, fun);
   }
-  return make_rtv(fun, make_rtt(f->type.funtype, funptr, &f->type, 0));
+  return make_rtv(fun, make_rtt(f->type.funtype, funptr, &f->type, 0), vfR);
 }
 struct rtv *call_funptr(struct val *e) {
   struct rtv *fptr;
   struct val *args;
-  fptr = eval(car(e));
+  fptr = prepare_read(eval(car(e)));
   args = cdr(e);
   if (fptr->t.info != funptr) {
     compiler_error(car(e), "expected function pointer type, found: %s",

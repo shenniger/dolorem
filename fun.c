@@ -26,22 +26,7 @@ void init_fun() {
   map_aliases = hashmap_new();
   assert(map_aliases);
 
-  rt_val_type = lower_create_opaque(LLVMPointerType(LLVMInt8Type(), 0), "val");
-  rt_rtt_type = lower_create_opaque(LLVMPointerType(LLVMInt8Type(), 0), "rtt");
-  rt_rtv_type = lower_create_opaque(LLVMPointerType(LLVMInt8Type(), 0), "rtv");
-
   funptr = register_type_class("funptr", print_funptr);
-  lower_typemacroproto("funptr_type");
-  register_type("funptr", "funptr_type", NULL);
-
-  lower_macroproto("funproto");
-  lower_macroproto("defun");
-  lower_macroproto("macroproto");
-  lower_macroproto("defmacro");
-  lower_macroproto("typemacroproto");
-  lower_macroproto("deftypemacro");
-  lower_macroproto("compiledfunction");
-  lower_macroproto("convert"); /* from type.c */
 }
 void end_fun() { hashmap_free(map_funs); }
 
@@ -135,7 +120,7 @@ struct rtv *funproto(struct val *l) {
     compiler_error(l, "error inserting function into hashmap: \"%s\"", name);
   }
   f->type.funtype = fun_type_to_llvm(f->type);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 struct rtv *defun(struct val *l) {
   struct val *name, *parms, *ret, *body;
@@ -171,7 +156,7 @@ struct rtv *defun(struct val *l) {
 
   f->type.funtype = fun_type_to_llvm(f->type);
   funbody(f, body);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 
 struct fun *lower_macroproto(const char *name) {
@@ -202,6 +187,27 @@ struct fun *lower_typemacroproto(const char *name) {
   a->type.parms[1].name = "prop";
   a->type.parms[1].t = *pointer_type(NULL, NULL);
   a->type.ret = *lower_alias_type(rt_rtt_type);
+  a->name = name;
+  a->type.funtype = fun_type_to_llvm(a->type);
+  if (hashmap_put(map_funs, name, a) != MAP_OK) {
+    compiler_error_internal("error inserting function into hashmap: \"%s\"",
+                            name);
+  }
+  return a;
+}
+struct fun *lower_typeconverterproto(const char *name) {
+  struct fun *a;
+  a = get_mem(sizeof(struct fun));
+  a->type.flags = ffTypeConverter;
+  a->type.nparms = 3;
+  a->type.parms = get_mem(sizeof(struct funparm) * 3);
+  a->type.parms[0].name = "v";
+  a->type.parms[0].t = *lower_alias_type(rt_rtv_type);
+  a->type.parms[1].name = "to";
+  a->type.parms[1].t = *lower_alias_type(rt_rtt_type);
+  a->type.parms[2].name = "is_explicit";
+  a->type.parms[2].t = *lower_integer_type(32, 0);
+  a->type.ret = *lower_alias_type(rt_rtv_type);
   a->name = name;
   a->type.funtype = fun_type_to_llvm(a->type);
   if (hashmap_put(map_funs, name, a) != MAP_OK) {
@@ -270,7 +276,7 @@ void funbody(struct fun *f, struct val *body) {
   prev2 = curllvmfn;
   curfn = f;
   curllvmfn = fun;
-  ret = *eval(body);
+  ret = *prepare_read(eval(body));
   if (f->type.ret.t.info) {
     struct rtv *c;
     c = convert_type(&ret, &f->type.ret, 0);
@@ -300,7 +306,7 @@ struct rtv *macroproto(struct val *l) {
     compiler_error(name, "expected identifier");
   }
   lower_macroproto(name->V.S);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 struct rtv *defmacro(struct val *l) {
   struct val *name, *body;
@@ -313,7 +319,7 @@ struct rtv *defmacro(struct val *l) {
     compiler_error(name, "expected identifier");
   }
   funbody(lower_macroproto(name->V.S), body);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 struct rtv *typemacroproto(struct val *l) {
   struct val *name;
@@ -325,7 +331,7 @@ struct rtv *typemacroproto(struct val *l) {
     compiler_error(name, "expected identifier");
   }
   lower_typemacroproto(name->V.S);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 struct rtv *deftypemacro(struct val *l) {
   struct val *name, *body;
@@ -338,12 +344,39 @@ struct rtv *deftypemacro(struct val *l) {
     compiler_error(name, "expected identifier");
   }
   funbody(lower_typemacroproto(name->V.S), body);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 
-struct rtt *funptr_type(struct val *l) {
+struct rtv *typeconverterproto(struct val *l) {
+  struct val *name;
+  name = car(l);
+  if (!is_nil(cdr(l))) {
+    compiler_error(cdr(l), "excess elements in \"typeconverterproto\"");
+  }
+  if (name->T != tyIdent) {
+    compiler_error(name, "expected identifier");
+  }
+  lower_typeconverterproto(name->V.S);
+  return &null_rtv;
+}
+struct rtv *deftypeconverter(struct val *l) {
+  struct val *name, *body;
+  name = car(l);
+  body = car(cdr(l));
+  if (!is_nil(cdr(cdr(l)))) {
+    compiler_error(cdr(l), "excess elements in \"deftypeconverter\"");
+  }
+  if (name->T != tyIdent) {
+    compiler_error(name, "expected identifier");
+  }
+  funbody(lower_typeconverterproto(name->V.S), body);
+  return &null_rtv;
+}
+
+struct rtt *funptr_type(struct val *l, void *prop) {
   struct val *parms, *ret;
   struct funtypeprop *f;
+  (void)prop;
   parms = car(l);
   if (parms->T != tyCons) {
     compiler_error(parms,

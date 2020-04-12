@@ -6,6 +6,7 @@
 #include "jit.h"
 #include "list.h"
 #include "quote.h"
+#include "structs.h"
 #include "type.h"
 #include "var.h"
 
@@ -39,6 +40,7 @@ int main(int argc, char **argv) {
   init_quote();
   init_include();
   init_eval();
+  init_structs();
 
   for (i = 1; i < argc; ++i) {
     if (*argv[i] != '-') {
@@ -50,6 +52,7 @@ int main(int argc, char **argv) {
     compiler_error_internal("no filename specified");
   }
 
+  end_structs();
   end_eval();
   end_include();
   end_quote();

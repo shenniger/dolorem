@@ -11,6 +11,7 @@ union typeprop { /* purely for convenience */
   struct funtypeprop *fun;
   struct typealias *alias;
   struct type *type;
+  struct structprop *strct;
   uint64_t num;
 };
 
@@ -20,6 +21,7 @@ struct type {
   uint32_t type_flags;
   uint32_t value_flags; /* part of the type since it's in the frontend */
 };
+enum { vfR = 0, vfL = 1 }; /* L/R value */
 
 struct rtt { /* run-time type */
   LLVMTypeRef l;
@@ -40,7 +42,7 @@ struct typeinf {
 };
 
 struct type_name {
-  const char *macroname;
+  struct fun *macro;
   void *prop;
   const char *name;
 };
@@ -48,14 +50,15 @@ struct type_name {
 extern map_t map_type_classes;
 
 struct type_converter {
-  const char *name;
+  struct fun *f;
   struct type_converter *next;
 };
 
+extern struct rtv null_rtv;
 extern struct type_converter *type_converter_list;
 extern struct type_converter *type_converter_last;
 struct rtv *register_type_converter(struct val *l);
-void lower_register_type_converter(const char *name);
+void lower_register_type_converter(struct fun *f);
 
 struct rtv *convert_equal_types(struct rtv *v, struct rtt *to, int is_explicit);
 
@@ -66,7 +69,8 @@ struct rtv *convert(struct val *e);
 struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit);
 const char *print_type(struct type *t);
 long sizeof_type(struct rtt *a);
-void register_type(const char *name, const char *macroname, void *prop);
+void register_type(const char *name, struct fun *macro, void *prop);
+struct rtv *prepare_read(struct rtv *a);
 struct typeinf *register_type_class(const char *name, type_printer_fun printer);
 inline struct rtt *copy_rtt(struct rtt a) {
   struct rtt *b;
@@ -93,10 +97,12 @@ inline struct rtt *make_rtt(LLVMTypeRef r, struct typeinf *info, void *prop,
 inline struct rtt *make_rtt_from_type(LLVMTypeRef r, struct type t) {
   return make_rtt(r, t.info, t.prop.any, t.type_flags);
 }
-inline struct rtv *make_rtv(LLVMValueRef v, struct rtt *t) {
+inline struct rtv *make_rtv(LLVMValueRef v, struct rtt *t,
+                            uint32_t value_flags) {
   struct rtv r;
   r.v = v;
   r.t = t->t;
+  r.t.value_flags = value_flags;
   return copy_rtv(r);
 }
 inline struct rtv *make_twin_rtv(LLVMValueRef v, struct rtv *old) {

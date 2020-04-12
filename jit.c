@@ -1,5 +1,7 @@
 #include "jit.h"
 
+#include "fun.h"
+#include "global.h"
 #include "list.h"
 #include "main.h"
 #include <dlfcn.h>
@@ -25,21 +27,47 @@ void handle_llvm_error(LLVMErrorRef e) {
   }
 }
 
-uint64_t resolve_sym(const char *name) {
-  LLVMOrcTargetAddress r;
-  handle_llvm_error(LLVMOrcGetSymbolAddress(orcref, &r, name));
-  if (!r) {
-    if (!((r = (uint64_t)(uintptr_t)dlsym(dlhdl, name)))) {
-      compiler_error_internal("couldn't resolve function symbol in JIT: \"%s\"",
-                              name);
+uint64_t resolve_sym(struct fun *a) {
+  if (!a->ptr) {
+    LLVMOrcTargetAddress r;
+    handle_llvm_error(LLVMOrcGetSymbolAddress(orcref, &r, a->name));
+    if (!r) {
+      if (!((r = (uint64_t)(uintptr_t)dlsym(dlhdl, a->name)))) {
+        compiler_error_internal(
+            "couldn't resolve function symbol in JIT: \"%s\"", a->name);
+      }
     }
+    a->ptr = (uint64_t)(uintptr_t)r;
   }
-  return (uint64_t)(uintptr_t)r;
+  return a->ptr;
 }
 
 static inline uint64_t orcresolverfun(const char *name, void *ctx) {
+  struct fun *f;
   (void)ctx;
-  return resolve_sym(name);
+  f = lookup_fun(name);
+  if (!f) {
+    struct global *g;
+    g = lookup_global(name);
+    if (!g) {
+      compiler_error_internal("orc attempted to lookup unknown symbol: \"%s\"",
+                              name);
+    }
+
+    if (!g->ptr) {
+      LLVMOrcTargetAddress r;
+      handle_llvm_error(LLVMOrcGetSymbolAddress(orcref, &r, g->name));
+      if (!r) {
+        if (!((r = (uint64_t)(uintptr_t)dlsym(dlhdl, g->name)))) {
+          compiler_error_internal(
+              "couldn't resolve function symbol in JIT: \"%s\"", g->name);
+        }
+      }
+      g->ptr = (uint64_t)(uintptr_t)r;
+    }
+    return g->ptr;
+  }
+  return resolve_sym(f);
 }
 void begin_new_function() { mod = LLVMModuleCreateWithName("test"); }
 void end_function(const char *name) {

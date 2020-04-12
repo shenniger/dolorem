@@ -34,6 +34,7 @@ funproto LLVMBuildICmp ((ptr bldr) (i32 op) (LLVMValueRef lhs) (LLVMValueRef rhs
 funproto LLVMBuildFCmp ((ptr bldr) (i32 op) (LLVMValueRef lhs) (LLVMValueRef rhs) (str name)) LLVMValueRef;
 
 # compiler
+create-alias fun ptr;
 external-global ptr bldr;
 external-global ptr curllvmfn;
 funproto empty-rtv () rtv;
@@ -53,14 +54,23 @@ funproto make-rtv ((LLVMValueRef v) (rtt t)) rtv;
 funproto make-twin-rtv ((LLVMValueRef v) (rtv old)) rtv;
 funproto add-variable ((str name) (rtt type)) rtv;
 funproto eval-type ((val a)) rtt;
-funproto lower-assign ((str name) (rtv rhs)) void;
+funproto lower-assign ((rtv lhs) (rtv rhs) (val loc)) void;
 funproto copy-symbol-to-module ((str symbol) (LLVMModuleRef mod)) void;
 funproto expect-same-number ((rtv a) (rtv b) (val errloc)) void;
-funproto call-fun-macro ((str name) (val a)) rtv;
+funproto call-fun-macro ((fun name) (val a)) rtv;
 funproto compiler-error ((val v) (str msg)) void;
 funproto make-int-const ((i64 a)) rtv;
 funproto is-int ((rtt v)) i32;
 funproto is-float ((rtt v)) i32;
+funproto lookup-fun ((str v)) fun;
+funproto prepare-read ((rtv a)) rtv;
+
+# for quote
+funproto make-nil-val () val;
+funproto make-int-val (i64 x;) val;
+funproto make-string-val (str x;) val;
+funproto make-ident-val (str x;) val;
+funproto cons (val a; val b;) val;
 
 # List functions
 defun cadr ((val a)) val (car (cdr a));
@@ -71,7 +81,7 @@ defun cadddr ((val a)) val (car (cdr (cdr (cdr a))));
 defun lower-not ((rtv a)) rtv
   (make-twin-rtv (LLVMBuildNot bldr (unwrap-llvm-value a) "not") a);
 defmacro not
-  (lower-not (eval (car args)));
+  (lower-not (prepare-read (eval (car args))));
 
 # Control structures: cond
 defun lower-cond (rtv cond; val body; ptr block1; ptr block2;) rtv {
@@ -82,16 +92,19 @@ defun lower-cond (rtv cond; val body; ptr block1; ptr block2;) rtv {
   LLVMPositionBuilderAtEnd bldr block2;
  cond
 };
-defmacro cond (lower-cond (convert-type (eval (car args)) (lower-integer-type 1 0) 1)
+defmacro cond (lower-cond
+                       (convert-type (prepare-read (eval (car args))) (lower-integer-type 1 0) 1)
                        (car (cdr args))
                        (LLVMAppendBasicBlock curllvmfn "condblock")
                        (LLVMAppendBasicBlock curllvmfn "aftercond"));
 
 # Variables
-defmacro var {
-  add-variable (expect-ident (cadr args)) (eval-type (car args));
+defun var-assign-helper (rtv v; val args;) void {
   cond (not (is-nil (cdr (cdr args))))
-    (lower-assign (expect-ident (cadr args)) (eval (car (cdr (cdr args)))));
+    (lower-assign v (eval (car (cdr (cdr args)))) args);
+};
+defmacro var {
+  var-assign-helper (add-variable (expect-ident (cadr args)) (eval-type (car args))) args;
  (empty-rtv)
 };
 
@@ -100,7 +113,7 @@ defmacro if {
   var ptr ifblk (LLVMAppendBasicBlock curllvmfn "ifblk");
   var ptr elseblk (LLVMAppendBasicBlock curllvmfn "elseblk");
   var ptr afterif (LLVMAppendBasicBlock curllvmfn "afterif");
-  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (eval (car args)) (lower-integer-type 1 0) 1)) ifblk elseblk;
+  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (prepare-read (eval (car args))) (lower-integer-type 1 0) 1)) ifblk elseblk;
   LLVMPositionBuilderAtEnd bldr ifblk;
   var rtv ifres (eval (cadr args));
   LLVMBuildBr bldr afterif;
@@ -118,12 +131,12 @@ defmacro if {
 
 # Binary operators
 defmacro arithmetic-op
-  (call-fun-macro "defmacro"
+  (call-fun-macro (lookup-fun "defmacro")
     (quasiquote (quasiunquote (car args)) {
       var rtv left;
       var rtv right;
-      assign left (eval (car args));
-      assign right (eval (cadr args));
+      assign left (prepare-read (eval (car args)));
+      assign right (prepare-read (eval (cadr args)));
       expect-same-number left right args;
      (if (is-int (unwrap-type left))
        (make-twin-rtv ((quasiunquote (cadr args)) bldr (unwrap-llvm-value left) (unwrap-llvm-value right) (quasiunquote (cadddr args))) left)
@@ -135,12 +148,12 @@ defmacro arithmetic-op
        ))
      )}));
 defmacro comparison-op
-  (call-fun-macro "defmacro"
+  (call-fun-macro (lookup-fun "defmacro")
     (quasiquote (quasiunquote (car args)) {
       (var rtv left)
       (var rtv right)
-      (assign left (eval (car args)))
-      (assign right (eval (cadr args)))
+      (assign left (prepare-read (eval (car args))))
+      (assign right (prepare-read (eval (cadr args))))
       (expect-same-number left right args)
      (if (is-int (unwrap-type left))
        (make-rtv (LLVMBuildICmp bldr (quasiunquote (cadr args)) (unwrap-llvm-value left) (unwrap-llvm-value right) "cmp") (lower-integer-type 1 0))
@@ -170,9 +183,9 @@ comparison-op <= 41 5;
 defmacro := {
   var rtv r (eval (car (cdr args)));
   var str name (expect-ident (car args));
-  add-variable name (unwrap-type r);
-  lower-assign name r;
- r
+  var rtv v (add-variable name (unwrap-type r));
+  lower-assign v r args;
+ v
 };
 
 # while
@@ -185,7 +198,7 @@ defmacro while {
   var ptr after (LLVMAppendBasicBlock curllvmfn "afterwhile");
   LLVMBuildBr bldr cond;
   LLVMPositionBuilderAtEnd bldr cond;
-  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (eval (car args))
+  LLVMBuildCondBr bldr (unwrap-llvm-value (convert-type (prepare-read (eval (car args)))
                                           (lower-integer-type 1 0) 1))
                   loop after;
   LLVMPositionBuilderAtEnd bldr loop;
@@ -221,7 +234,7 @@ defmacro continue {
 };
 
 # Sizeof
-defmacro sizeof (make-int-const (sizeof-type (eval-type (car args))));
+defmacro sizeof (make-int-const (sizeof-type (eval-type (car args)))); #TODO: L/R values???
 
 # Linker control
 funproto dlopen ((str a) (i32 mode)) ptr;

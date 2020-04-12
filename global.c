@@ -18,6 +18,7 @@ void lower_defglobal(const char *name, struct rtt *type, int isextern) {
   g = get_mem(sizeof(struct global));
   g->name = name;
   g->type = type;
+  g->type->t.value_flags = vfL;
   if (hashmap_get(map_globals, name, &dummy) == MAP_OK) {
     compiler_error_internal("global already defined: \"%s\"", name);
   }
@@ -40,7 +41,7 @@ struct rtv *defglobal(struct val *l) {
     compiler_error(name, "expected identifier");
   }
   lower_defglobal(name->V.S, eval_type(type), 0);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
 }
 struct rtv *external_global(struct val *l) {
   struct val *name, *type;
@@ -53,5 +54,13 @@ struct rtv *external_global(struct val *l) {
     compiler_error(name, "expected identifier");
   }
   lower_defglobal(name->V.S, eval_type(type), 1);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  return &null_rtv;
+}
+
+struct global *lookup_global(const char *name) {
+  struct global *r;
+  if (hashmap_get(map_globals, name, (void **)&r) != MAP_OK) {
+    return NULL;
+  }
+  return r;
 }

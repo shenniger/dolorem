@@ -6,10 +6,10 @@ The idea is to have a programming language with macros which are so powerful tha
 can even call directly into the code generator.
 
 Combine that with the macro-friendly S-expression syntax and you end up with a truly
-programmable programming language.
+programmable programming language, just like the old Lisps.
 
-Because this uses LLVM and is statically typed, everything compiles to machine code
-and you therefore don't lose any runtime performance.
+Unlike the old Lisps, though, Dolorem is statically typed and uses LLVM so
+everything compiles to machine code and you don't lose any runtime performance.
 
 ## Example
 This is the current implementation of the `not` operator as a macro:
@@ -31,13 +31,10 @@ for the front-end.
 ## Dependencies
 * Linux (sorry … didn't get around to porting this to anything else yet)
 * Modern C/C++ compiler
-* LLVM (preferably an SVN build)
+* LLVM 10+
 
 ## Compiling it
 Just type `make`. You may need to specify the environment variables `CC`, `CXX` and `LLVMPREFIX`.
 
 If you encounter any compiler errors, try running `make report` or use another version
 of LLVM.
-
-## Trying it
-You can run `./dolorem graphics_example.dlr` to see the system in action.

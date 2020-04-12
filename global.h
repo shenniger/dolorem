@@ -8,12 +8,15 @@
 struct global {
   const char *name;
   struct rtt *type;
+  uint64_t ptr;
 };
 
 extern map_t map_globals;
 
 void init_global();
 void end_global();
+
+struct global *lookup_global(const char *name);
 
 void lower_defglobal(const char *name, struct rtt *type, int isextern);
 struct rtv *defglobal(struct val *l);

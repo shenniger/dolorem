@@ -10,7 +10,7 @@ void end_var();
 /* adds a variable to the current scope */
 struct rtv *add_variable(const char *name, struct rtt *type);
 
-void lower_assign(const char *name, struct rtv *value);
+void lower_assign(struct rtv *lhs, struct rtv *value, struct val *e);
 struct rtv *assign(struct val *e);
 
 #endif

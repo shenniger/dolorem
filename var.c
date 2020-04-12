@@ -20,49 +20,35 @@ struct rtv *add_variable(const char *name, struct rtt *type) {
   curfn->scope->vars = n;
   n->hashed_name = hash_of_string(name);
   n->name = name;
-  n->v = *make_rtv(LLVMBuildAlloca(bldr, type->l, name), type);
+  n->v = *make_rtv(LLVMBuildAlloca(bldr, type->l, name), type, vfL);
   n->t = *type;
-  return &n->v;
+  return copy_rtv(n->v);
 }
 
-void lower_assign(const char *name, struct rtv *rhs) {
-  struct funvar *var;
-  struct global *g;
+void lower_assign(struct rtv *lhs, struct rtv *rhs, struct val *e) {
   struct rtv *conv;
-  var = lookup_in_fun_scope(curfn, name);
-  if (!var) {
-    LLVMValueRef v;
-    if (hashmap_get(map_globals, name, (void **)&g) != MAP_OK) {
-      compiler_error_internal("unknown variable: \"%s\"", name);
-    }
-    conv = convert_type(rhs, g->type, 0);
-    if (!conv) {
-      compiler_error_internal("couldn't convert \"%s\" to \"%s\" implicitly",
-                              print_type(&rhs->t), print_type(&g->type->t));
-    }
-    v = LLVMGetNamedGlobal(mod, g->name);
-    if (!v) {
-      v = LLVMAddGlobal(mod, g->type->l, g->name);
-    }
-    LLVMBuildStore(bldr, conv->v, v);
-  } else {
-    conv = convert_type(rhs, &var->t, 0);
-    if (!conv) {
-      compiler_error_internal("couldn't convert \"%s\" to \"%s\" implicitly",
-                              print_type(&rhs->t), print_type(&var->t.t));
-    }
-    LLVMBuildStore(bldr, conv->v, var->v.v);
+  if (!(lhs->t.value_flags & vfL)) {
+    compiler_error(e, "attempt to assign to an r-value");
   }
+  rhs = prepare_read(rhs);
+  conv = convert_type(
+      rhs, make_rtt_from_type(LLVMGetElementType(LLVMTypeOf(lhs->v)), lhs->t),
+      0);
+  if (!conv) {
+    compiler_error(e, "couldn't convert \"%s\" to \"%s\" implicitly",
+                   print_type(&rhs->t), print_type(&lhs->t));
+  }
+  LLVMBuildStore(bldr, conv->v, lhs->v);
 }
 
 struct rtv *assign(struct val *e) {
-  const char *lhs;
+  struct rtv *lhs;
   struct rtv *rhs;
-  lhs = expect_ident(car(e)); /* TODO: this is too restrictive */
+  lhs = eval(car(e));
   rhs = eval(car(cdr(e)));
   if (!is_nil(cdr(cdr(e)))) {
     compiler_error(e, "excess elements in \"assign\"");
   }
-  lower_assign(lhs, rhs);
-  return make_rtv(NULL, make_rtt(NULL, NULL, NULL, 0));
+  lower_assign(lhs, rhs, e);
+  return &null_rtv;
 }
