@@ -2,16 +2,23 @@ This project turns the idea of compile-time function execution as a metaprogramm
 mechanism up to eleven.
 
 ## Overview
-The idea is to have a programming language with macros which are so powerful that they
+The idea is to have a programming language with macros are so powerful, they
 can even call directly into the code generator.
 
 Combine that with the macro-friendly S-expression syntax and you end up with a truly
-programmable programming language, just like the old Lisps.
-
-Unlike the old Lisps, though, Dolorem is statically typed and uses LLVM so
-everything compiles to machine code and you don't lose any runtime performance.
+programmable programming language, just like the old Lisps. Unlike the old Lisps,
+though, Dolorem is statically typed and uses LLVM to compile everything to fast machine code.
 
 ## Example
+```
+include "def.dlr";
+funproto puts (str a;) i32;
+defun main () i32 {
+  puts "Hello, world!";
+};
+```
+
+## Macro Example
 This is the current implementation of the `not` operator as a macro:
 ```
 defun lower-not ((rtv a)) rtv
@@ -25,7 +32,7 @@ is passed a list of arguments and that can generate code.
 
 `not` does so by evaluating its first argument (read: generating run-time code
 for evaluation of its first argument) and then calling into a regular function
-called `lower-not` which calls `LLVMBuildNot` to build and generates type information
+called `lower-not` which calls `LLVMBuildNot` and generates type information
 for the front-end.
 
 ## Dependencies
@@ -36,5 +43,4 @@ for the front-end.
 ## Compiling it
 Just type `make`. You may need to specify the environment variables `CC`, `CXX` and `LLVMPREFIX`.
 
-If you encounter any compiler errors, try running `make report` or use another version
-of LLVM.
+If you encounter any compiler errors, try running `make report` or use another version of LLVM.
