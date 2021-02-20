@@ -54,10 +54,13 @@ static void writeType(CXType a, const char *name) {
     }
     break;
   }
-
   case CXType_Pointer: {
     CXType pointee = clang_getPointeeType(a);
-    if (pointee.kind != CXType_Void) {
+    if (pointee.kind == CXType_Unexposed) {
+      writeType(clang_getCanonicalType(pointee), name);
+      break;
+    }
+    if (pointee.kind != CXType_Void && pointee.kind != CXType_Elaborated) {
       printf("(ptr ");
       writeType(pointee, name);
       printf(")");
@@ -74,13 +77,35 @@ static void writeType(CXType a, const char *name) {
   case CXType_Elaborated:
     writeType(clang_Type_getNamedType(a), name);
     break;
+  case CXType_FunctionProto: {
+    printf("(funptr (");
+    unsigned num = clang_getNumArgTypes(a);
+    for (unsigned i = 0; i < num; ++i) {
+      CXType b = clang_getArgType(a, i);
+      if (i) {
+        printf(" ");
+      }
+      printf("(");
+      writeType(b, name);
+      printf(" _)");
+    }
+    printf(") ");
+    writeType(clang_getResultType(a), name);
+    printf(")");
+    break;
+  }
   case CXType_Record:
-  case CXType_FunctionProto:
-    printf("i32");
-    fprintf(stderr, "# WARN: Currently unsupported type %s\n",
+    printf("%s", clang_getCString(
+                     clang_getCursorSpelling(clang_getTypeDeclaration(a))));
+    break;
+  case CXType_Unexposed:
+    puts("");
+    fprintf(stderr, "ERR: unexposed type in %s: %s!\n", name,
             clang_getCString(clang_getTypeSpelling(a)));
+    exit(1);
     break;
   default:
+    puts("");
     fprintf(stderr, "ERR: unknown type (%i) in %s: %s!\n", (int)a.kind, name,
             clang_getCString(clang_getTypeSpelling(a)));
     exit(1);
@@ -92,13 +117,13 @@ static void writeFun(CXType rettype, const char *name, struct Arg *args,
                      unsigned numargs) {
   printf("funproto %s (", name);
   for (unsigned i = 0; i < numargs; ++i) {
-    printf("(");
-    writeType(args->Type, name);
-    printf(" %s) ", args->Name);
+    printf(i ? " (" : "(");
+    writeType(args[i].Type, name);
+    printf(" %s)", *args[i].Name ? args[i].Name : "_");
   }
   printf(") ");
   writeType(rettype, name);
-  printf(";\n");
+  printf("; ");
 }
 
 static void writeLocation(CXCursor cursor) {
@@ -108,6 +133,24 @@ static void writeLocation(CXCursor cursor) {
   clang_getSpellingLocation(a, &file, &line, &column, NULL);
   printf("# Found in %s:%u:%u\n", clang_getCString(clang_getFileName(file)),
          line, column);
+}
+
+static enum CXChildVisitResult structVisitor(CXCursor cursor, CXCursor parent,
+                                             CXClientData client_data) {
+  enum CXCursorKind kind;
+
+  (void)parent, (void)client_data;
+
+  kind = clang_getCursorKind(cursor);
+  if (kind == CXCursor_FieldDecl) {
+    const char *name = clang_getCString(clang_getCursorSpelling(cursor));
+    printf("  (");
+    writeType(clang_getCursorType(cursor), name);
+    printf(" %s) ", name);
+    writeLocation(cursor);
+  }
+
+  return CXChildVisit_Continue;
 }
 
 static enum CXChildVisitResult visitor(CXCursor cursor, CXCursor parent,
@@ -126,28 +169,40 @@ static enum CXChildVisitResult visitor(CXCursor cursor, CXCursor parent,
       args[i].Name = clang_getCString(clang_getCursorSpelling(a));
       args[i].Type = clang_getCursorType(a);
     }
-    writeLocation(cursor);
     writeFun(rettype, clang_getCString(clang_getCursorSpelling(cursor)), args,
              num);
+    writeLocation(cursor);
   } else if (kind == CXCursor_VarDecl) {
-    /* TODO */
+    if (clang_Cursor_getStorageClass(cursor) == CX_SC_Extern) {
+      const char *name = clang_getCString(clang_getCursorSpelling(cursor));
+      printf("external-global ");
+      writeType(clang_getCursorType(cursor), name);
+      printf(" %s; ", name);
+      writeLocation(cursor);
+    }
+  } else if (kind == CXCursor_StructDecl) {
+    const char *name = clang_getCString(clang_getCursorSpelling(cursor));
+    printf("defstruct %s (\n", name);
+    clang_visitChildren(cursor, structVisitor, NULL);
+    printf("); ");
+    writeLocation(cursor);
   } else if (kind == CXCursor_EnumDecl) {
     if (!clang_Cursor_isAnonymous(cursor)) {
-      writeLocation(cursor);
       printf("create-alias %s ",
              clang_getCString(clang_getCursorSpelling(cursor)));
       writeType(clang_getEnumDeclIntegerType(cursor),
                 clang_getCString(clang_getCursorSpelling(cursor)));
-      printf(";\n");
+      printf("; ");
+      writeLocation(cursor);
     }
     /* TODO: print all enum values */
   } else if (kind == CXCursor_TypedefDecl) {
-    writeLocation(cursor);
     printf("create-alias %s ",
            clang_getCString(clang_getCursorSpelling(cursor)));
     writeType(clang_getTypedefDeclUnderlyingType(cursor),
               clang_getCString(clang_getCursorSpelling(cursor)));
-    printf(";\n");
+    printf("; ");
+    writeLocation(cursor);
   }
 
   return CXChildVisit_Continue;
