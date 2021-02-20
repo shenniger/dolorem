@@ -1,14 +1,15 @@
-all: dolorem
+all: dolorem chdrconv
 
-CC = gcc-new
-CXX = g++-new
+CC = gcc
+CXX = g++
 
 MODE ?= -g -O0
 CFLAGS ?=
 CXXFLAGS ?= 
 LINKFLAGS ?=
 
-LLVMPREFIX ?= ~/local
+LLVMPREFIX ?= ~
+LIBCLANGPREFIX ?= /usr/lib/llvm-3.9
 
 %.o: %.c *.h
 	$(CC) -c -Wall -Wextra -fpic -pedantic -std=c11 -isystem $(LLVMPREFIX)/include  $< -o $@ $(MODE) $(CFLAGS)
@@ -22,6 +23,13 @@ libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o 
 dolorem: main.o libdolorem.so
 	$(CXX) -L. $^ -o $@ -fno-rtti -fno-exceptions \
 		-L $(LLVMPREFIX)/lib -lLLVM -ldl $(MODE) $(LINKFLAGS)
+
+chdrconv.o: chdrconv.c
+	$(CC) -c -Wall -Wextra -pedantic -std=c99 \
+		$(CFLAGS) $< -o $@ $(MODE) -isystem $(LIBCLANGPREFIX)/include
+
+chdrconv: chdrconv.o
+	$(CXX) $^ -o $@ $(MODE) $(LINKFLAGS) -L $(LIBCLANGPREFIX)/lib -lclang -fno-rtti -fno-exceptions
 
 .PHONY: report clean
 report:
