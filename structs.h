@@ -10,6 +10,10 @@ struct typeinf *struct_instance;
 struct structmemb {
   const char *name;
   struct rtt type;
+  long unionmain, llvmnum;
+  /* -1 if no union member,
+   * otherwise the index of the
+   * union member known to LLVM */
 };
 
 struct structprop {

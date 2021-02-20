@@ -1,0 +1,33 @@
+include "def.dlr";
+funproto puts (str a;) void;
+funproto printf (str a; i32 x;) void;
+
+defstruct myval (
+  union (
+    u8 T; # Found in list.h:22:17
+    u8 A; # Found in list.h:22:17
+    u8 B; # Found in list.h:22:17
+    u8 C; # Found in list.h:22:17
+    u32 D; # Found in list.h:22:17
+    float E;
+  );
+  u8 Reserved; # Found in list.h:24:17
+  u32 CharIdx; # Found in list.h:26:16
+  u16 FileIdx; # Found in list.h:27:18
+); # Found in list.h:18:8
+
+defmacro run {
+  #printf "sizeof int: %i\n" (sizeof-type (eval-type (quote i32)));
+  #printf "sizeof int: %i\n" (sizeof i32);
+  #printf "sizeof long: %i\n" (sizeof-type (eval-type (quote i64)));
+  #printf "sizeof long: %i\n" (sizeof i64);
+  var myval b;
+  assign (memb b Reserved) 0;
+  assign (memb b D) 300;
+  printf "hello %i\n" (memb b T);
+  printf "hello %i\n" (memb b Reserved);
+ empty-rtv;
+};
+
+run;
+

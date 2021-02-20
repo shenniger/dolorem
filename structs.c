@@ -2,9 +2,11 @@
 
 #include "eval.h"
 #include "fun.h"
+#include "type.h"
 
 #include <alloca.h>
 #include <assert.h>
+#include <llvm-c/Core.h>
 #include <string.h>
 
 struct typeinf *struct_instance;
@@ -22,6 +24,21 @@ void init_structs() {
 }
 void end_structs() {}
 
+static long count_struct_len(struct val *l, long *memb_len) {
+  long n;
+  struct val *li;
+  n = 0;
+  *memb_len = 0;
+  for (li = l; li->V.L && li->T == tyCons; li = &li->V.L->cdr) {
+    ++n;
+    if (val_is_ident(car(car(li))) && strcmp(car(car(li))->V.S, "union") == 0) {
+      *memb_len += count_len(car(cdr(car(li))));
+    } else {
+      ++*memb_len;
+    }
+  }
+  return n;
+}
 struct rtt *struct_type(struct val *e, void *prop) {
   (void)e;
   return make_rtt(((struct structprop *)prop)->l, struct_instance, prop, 0);
@@ -30,7 +47,8 @@ struct rtv *defstruct(struct val *e) {
   struct val *memblist, *m;
   struct structprop *p;
   LLVMTypeRef *t;
-  long i;
+  long i, j;
+  long llvmlen;
   p = get_mem(sizeof(struct structprop));
   p->name = expect_ident(car(e));
   memblist = car(cdr(e));
@@ -40,22 +58,58 @@ struct rtv *defstruct(struct val *e) {
   if (!is_nil(cdr(cdr(e)))) {
     compiler_error(e, "excess elements in \"defstruct\"");
   }
-  p->nmemb = count_len(memblist);
+
+  llvmlen = count_struct_len(memblist, &p->nmemb);
   p->memb = get_mem(sizeof(struct structmemb) * p->nmemb);
-  for (i = 0, m = memblist; i < p->nmemb; ++i, m = cdr(m)) {
-    p->memb[i].type = *eval_type(car(car(m)));
-    p->memb[i].name = expect_ident(car(cdr(car(m))));
-    if (!is_nil(cdr(cdr(car(m))))) {
-      compiler_error(m, "excess elements in struct member");
+  t = alloca(sizeof(LLVMTypeRef) * llvmlen);
+
+  for (i = 0, j = 0, m = memblist; i < p->nmemb; ++i, ++j, m = cdr(m)) {
+    if (val_is_ident(car(car(m))) && strcmp(car(car(m))->V.S, "union") == 0) {
+      /* call the FCA -- they're trying to form a ..., a ...., a UNIOOOOON! */
+      struct val *n;
+      long first, last;
+      long longest, longest_size;
+      first = i;
+      for (n = car(cdr(car(m))); !is_nil(n); n = &n->V.L->cdr, ++i) {
+        p->memb[i].type = *eval_type(car(car(n)));
+        p->memb[i].name = expect_ident(car(cdr(car(n))));
+        if (!is_nil(cdr(cdr(car(n))))) {
+          compiler_error(n, "excess elements in union member");
+        }
+      }
+      last = i;
+      /* find longest member */
+      longest_size = 0;
+      longest = -1;
+      for (i = first; i < last; ++i) {
+        if (sizeof_type(&p->memb[i].type) > longest_size) {
+          longest_size = sizeof_type(&p->memb[i].type);
+          longest = i;
+        }
+      }
+      if (longest == -1) {
+        compiler_error(m, "empty union forbidden");
+      }
+      for (i = first; i < last; ++i) {
+        p->memb[i].unionmain = longest;
+        p->memb[longest].llvmnum = j;
+      }
+      t[j] = p->memb[longest].type.l;
+      p->memb[longest].llvmnum = j;
+      i = last - 1;
+    } else {
+      p->memb[i].type = *eval_type(car(car(m)));
+      p->memb[i].name = expect_ident(car(cdr(car(m))));
+      p->memb[i].unionmain = -1;
+      if (!is_nil(cdr(cdr(car(m))))) {
+        compiler_error(m, "excess elements in struct member");
+      }
+      t[j] = p->memb[i].type.l;
+      p->memb[i].llvmnum = j;
     }
   }
-  /* LLVM */
-  t = alloca(sizeof(LLVMTypeRef) * p->nmemb);
-  for (i = 0; i < p->nmemb; ++i) {
-    t[i] = p->memb[i].type.l;
-  }
   p->l = LLVMStructCreateNamed(LLVMGetGlobalContext(), p->name);
-  LLVMStructSetBody(p->l, t, p->nmemb, 0);
+  LLVMStructSetBody(p->l, t, llvmlen, 0);
 
   register_type(p->name, struct_macro, p);
   return &null_rtv;
@@ -76,8 +130,20 @@ struct rtv *memb(struct val *e) {
   }
   for (i = 0; i < o->t.prop.strct->nmemb; ++i) {
     if (strcmp(o->t.prop.strct->memb[i].name, name) == 0) {
-      return make_rtv(LLVMBuildStructGEP(bldr, o->v, i, "structmemb"),
-                      &o->t.prop.strct->memb[i].type, vfL);
+      struct structmemb *memb = &o->t.prop.strct->memb[i];
+      if (memb->unionmain == -1) {
+        return make_rtv(
+            LLVMBuildStructGEP(bldr, o->v, memb->llvmnum, "structmemb"),
+            &o->t.prop.strct->memb[i].type, vfL);
+      } else {
+        return make_rtv(
+            LLVMBuildBitCast(
+                bldr,
+                LLVMBuildStructGEP(bldr, o->v, memb->llvmnum, "structmemb"),
+                LLVMPointerType(o->t.prop.strct->memb[i].type.l, 0),
+                "unionmemb"),
+            &o->t.prop.strct->memb[memb->unionmain].type, vfL);
+      }
     }
   }
   compiler_error(car(e), "struct member \"%s\" not found in struct \"%s\"",
