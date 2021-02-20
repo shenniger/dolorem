@@ -13,8 +13,6 @@ struct rtv null_rtv;
 struct type_converter *type_converter_list;
 struct type_converter *type_converter_last;
 
-struct rtt *make_rtt(LLVMTypeRef r, struct typeinf *info, void *prop,
-                     long type_flags);
 struct rtv *make_rtv(LLVMValueRef v, struct rtt *t, uint32_t value_flags);
 struct rtt *copy_rtt(struct rtt a);
 struct rtv *copy_rtv(struct rtv a);
@@ -146,6 +144,8 @@ void lower_register_type_converter(struct fun *f) {
   type_converter_last->f = f;
 }
 
+struct rtt *make_rtt(LLVMTypeRef r, struct typeinf *info, void *prop,
+                     long type_flags);
 struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit_cast) {
   struct type_converter *t;
   struct rtv *r;
@@ -162,4 +162,4 @@ const char *print_type(struct type *t) {
   }
   return t->info->printer(t);
 }
-long sizeof_type(struct rtt *t) { return GetTypeSize(mod, t->l); }
+long sizeof_type(struct rtt *t) { return GetTypeSize(typemod, t->l); }
