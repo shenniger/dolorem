@@ -10,7 +10,7 @@
 
 #include "llvmext.h"
 
-LLVMModuleRef mod;
+LLVMModuleRef mod, typemod;
 LLVMOrcJITStackRef orcref;
 LLVMOrcModuleHandle modhdl;
 LLVMBuilderRef bldr;
@@ -138,6 +138,8 @@ void init_jit() {
   if (!orcref) {
     compiler_error_internal("error creating LLVM ORC instance");
   }
+
+  typemod = LLVMModuleCreateWithName("test");
 }
 int module_freer(any_t item, any_t value) {
   (void)item;

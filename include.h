@@ -6,6 +6,7 @@
 #include "type.h"
 
 extern LLVMModuleRef precompiled_module;
+extern int enable_precompilation;
 
 void init_include();
 void end_include();

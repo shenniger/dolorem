@@ -20,12 +20,15 @@ int main(int argc, char **argv) {
   dump_modules = 0;
   dump_lists = 0;
   read_filename = 0;
+  enable_precompilation = 0;
   for (i = 1; i < argc; ++i) {
     if (*argv[i] == '-') {
       if (strcmp(argv[i], "--dump-modules") == 0) {
         dump_modules = 1;
       } else if (strcmp(argv[i], "--dump-lists") == 0) {
         dump_lists = 1;
+      } else if (strcmp(argv[i], "--enable-precompilation") == 0) {
+        enable_precompilation = 1;
       }
     }
   }

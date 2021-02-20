@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 LLVMModuleRef precompiled_module;
+int enable_precompilation;
 
 void init_include() { lower_macroproto("include"); }
 void end_include() {}
@@ -40,11 +41,14 @@ struct rtv *lower_include(const char *filename) {
     printf("\n");
   }
   pcmod_before = precompiled_module;
-  so_path = print_to_mem("./%s_pc.so", filename);
   {
     struct stat src, so;
-    stat(filename, &src);
-    if (stat(so_path, &so) == 0 && src.st_mtime < so.st_mtime) {
+    if (enable_precompilation) {
+      so_path = print_to_mem("./%s_pc.so", filename);
+      stat(filename, &src);
+    }
+    if (enable_precompilation && stat(so_path, &so) == 0 &&
+        src.st_mtime < so.st_mtime) {
       precompiled_module = NULL;
       if (!dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL)) {
         compiler_error_internal("failure loading precompiled file \"%s\": %s",
@@ -56,7 +60,7 @@ struct rtv *lower_include(const char *filename) {
   }
   r = progn(list);
   {
-    if (precompiled_module) {
+    if (precompiled_module && enable_precompilation) {
       const char *bc_path;
       bc_path = print_to_mem("%s_pc.bc", filename);
       LLVMWriteBitcodeToFile(precompiled_module, bc_path);

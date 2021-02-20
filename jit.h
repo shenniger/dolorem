@@ -10,7 +10,7 @@
 #include <llvm-c/OrcBindings.h>
 #include <llvm-c/Target.h>
 
-extern LLVMModuleRef mod;
+extern LLVMModuleRef mod, typemod;
 extern LLVMOrcJITStackRef orcref;
 extern LLVMOrcModuleHandle modhdl;
 extern LLVMBuilderRef bldr;
