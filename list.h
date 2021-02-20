@@ -104,6 +104,11 @@ inline struct val *cons(struct val *a, struct val *b) {
   return copy_val(e);
 }
 inline int is_nil(struct val *e) { return e->T == tyCons && !e->V.L; }
+inline int val_is_int(struct val *e) { return e->T == tyInt; }
+inline int val_is_list(struct val *e) { return e->T == tyCons && e->V.L; }
+inline int val_is_ident(struct val *e) { return e->T == tyIdent; }
+inline int val_is_float(struct val *e) { return e->T == tyFloat; }
+inline int val_is_string(struct val *e) { return e->T == tyString; }
 inline const char *expect_ident(struct val *e) {
   if (e->T != tyIdent) {
     compiler_error(e, "expected identifier");
