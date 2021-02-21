@@ -483,10 +483,14 @@ unsigned int count_len(struct val *l) {
   return n;
 }
 
+static int is_word_boundary(char a) {
+  return a == ' ' || a == '\n' || a == '\t' || a == ';' || a == '#' ||
+         a == '}' || a == ')';
+}
+
 static char *strlastchr_word_boundary(char *a, char x) {
   char *res = NULL;
-  while (*a && *a != ' ' && *a != '\n' && *a != '\t' && *a != ';' &&
-         *a != '#' && *a != '}' && *a != ')') {
+  while (*a && !is_word_boundary(*a)) {
     if (*a == x) {
       res = a;
     }
@@ -498,7 +502,7 @@ static char *strlastchr_word_boundary(char *a, char x) {
 static void transform_identifier(struct val *v) {
   char *colon;
   if ((colon = strlastchr_word_boundary(v->V.S, ':'))) {
-    if (colon == v->V.S || colon[1] == '\0') {
+    if (colon == v->V.S || colon[1] == '\0' || is_word_boundary(colon[1])) {
       return;
     }
     struct val cl, memb, funcall, cons1, cons2;
