@@ -284,7 +284,7 @@ static void prepare_string(char *s, struct val *e) {
         break;
       /* TODO: more control sequences */
       default:
-        compiler_error(e, "invalid control sequence");
+        compiler_error(e, "invalid control sequence \"%c\"", *r);
       }
       ++r;
       continue;
@@ -353,8 +353,8 @@ struct val *read_string(const char *s, const char *filename) {
   if (!lastsource->Content) {
     struct val li;
     memset(&li, 0, sizeof(struct val));
-    compiler_error(&li, "read_string expected non-null string (in \"%s\")",
-                   lastsource->Name);
+    compiler_error_internal("read_string expected non-null string (in \"%s\")",
+                            lastsource->Name);
   }
   if (!firstsource) {
     firstsource = lastsource;
@@ -377,7 +377,7 @@ struct val *read_file(const char *filename) {
   if (!lastsource->Content) {
     struct val li;
     memset(&li, 0, sizeof(struct val));
-    compiler_error(&li, "can not find file: %s", lastsource->Name);
+    compiler_error_internal("can not find file: %s", lastsource->Name);
   }
   if (!firstsource) {
     firstsource = lastsource;
@@ -531,7 +531,7 @@ resume_loop:
       r.CharIdx = s - filebegin;
       ++s;
       r.V.S = s;
-      for (; *s != '"'; ++s) {
+      for (; *s != '"' || s[-1] == '\\'; ++s) {
         if (!*s) {
           compiler_error(&r, "missing closing '\"'");
         }
@@ -548,7 +548,7 @@ resume_loop:
           }
         }
         ++s;
-        for (; *s != '"'; ++s) {
+        for (; *s != '"' || s[-1] == '\\'; ++s) {
           if (!*s) {
             compiler_error(&r, "missing closing '\"'");
           }

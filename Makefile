@@ -21,12 +21,10 @@ libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o 
 	$(CXX) $^ -o $@ -shared
 
 dolorem: main.o libdolorem.so
-	$(CXX) -L. $^ -o $@ -fno-rtti -fno-exceptions \
-		-L $(LLVMPREFIX)/lib -lLLVM -ldl $(MODE) $(LINKFLAGS)
+	$(CXX) -L. $^ -o $@ -fno-rtti -fno-exceptions -L $(LLVMPREFIX)/lib -lLLVM -ldl $(MODE) $(LINKFLAGS)
 
 chdrconv.o: chdrconv.c
-	$(CC) -c -Wall -Wextra -pedantic -std=c99 \
-		$(CFLAGS) $< -o $@ $(MODE) -isystem $(LIBCLANGPREFIX)/include
+	$(CC) -c -Wall -Wextra -pedantic -std=c99 $(CFLAGS) $< -o $@ $(MODE) -isystem $(LIBCLANGPREFIX)/include
 
 chdrconv: chdrconv.o
 	$(CXX) $^ -o $@ $(MODE) $(LINKFLAGS) -L $(LIBCLANGPREFIX)/lib -lclang -fno-rtti -fno-exceptions

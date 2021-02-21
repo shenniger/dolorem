@@ -10,6 +10,7 @@
 #include "type.h"
 #include "var.h"
 
+#include <alloca.h>
 #include <string.h>
 
 int dump_modules, dump_lists;
@@ -17,19 +18,22 @@ int dump_modules, dump_lists;
 int main(int argc, char **argv) {
   int i;
   int read_filename;
+  struct val **files;
   dump_modules = 0;
   dump_lists = 0;
   read_filename = 0;
   enable_precompilation = 0;
+  files = alloca(argc * sizeof(char *));
   for (i = 1; i < argc; ++i) {
-    if (*argv[i] == '-') {
-      if (strcmp(argv[i], "--dump-modules") == 0) {
-        dump_modules = 1;
-      } else if (strcmp(argv[i], "--dump-lists") == 0) {
-        dump_lists = 1;
-      } else if (strcmp(argv[i], "--enable-precompilation") == 0) {
-        enable_precompilation = 1;
-      }
+    files[i] = NULL;
+    if (strcmp(argv[i], "--dump-modules") == 0) {
+      dump_modules = 1;
+    } else if (strcmp(argv[i], "--dump-lists") == 0) {
+      dump_lists = 1;
+    } else if (strcmp(argv[i], "--enable-precompilation") == 0) {
+      enable_precompilation = 1;
+    } else {
+      files[i] = read_file(argv[i]);
     }
   }
 
@@ -46,8 +50,8 @@ int main(int argc, char **argv) {
   init_structs();
 
   for (i = 1; i < argc; ++i) {
-    if (*argv[i] != '-') {
-      lower_include(argv[i]);
+    if (files[i]) {
+      lower_include_list(argv[i], files[i]);
       read_filename = 1;
     }
   }

@@ -30,12 +30,10 @@ struct rtv *include(struct val *l) {
   }
   return lower_include(name->V.S);
 }
-struct rtv *lower_include(const char *filename) {
-  struct val *list;
+struct rtv *lower_include_list(const char *filename, struct val *list) {
   struct rtv *r;
   LLVMModuleRef pcmod_before;
   const char *so_path;
-  list = read_file(filename);
   if (dump_lists) {
     print_list(list);
     printf("\n");
@@ -72,4 +70,7 @@ struct rtv *lower_include(const char *filename) {
     precompiled_module = pcmod_before;
   }
   return r;
+}
+struct rtv *lower_include(const char *filename) {
+  return lower_include_list(filename, read_file(filename));
 }

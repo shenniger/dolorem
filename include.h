@@ -12,5 +12,6 @@ void init_include();
 void end_include();
 struct rtv *include(struct val *e);
 struct rtv *lower_include(const char *name);
+struct rtv *lower_include_list(const char *filename, struct val *list);
 
 #endif
