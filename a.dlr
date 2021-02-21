@@ -22,10 +22,10 @@ defmacro run {
   #printf "sizeof long: %i\n" (sizeof-type (eval-type (quote i64)));
   #printf "sizeof long: %i\n" (sizeof i64);
   var myval b;
-  assign (memb b Reserved) 0;
-  assign (memb b D) 300;
-  printf "hello %i\n" (memb b T);
-  printf "hello %i\n" (memb b Reserved);
+  assign b:Reserved 0;
+  assign b:D 300;
+  printf "hello %i\n" b:T;
+  printf "hello %i\n" b:Reserved;
  empty-rtv;
 };
 

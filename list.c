@@ -397,6 +397,49 @@ unsigned int count_len(struct val *l) {
   return n;
 }
 
+static char *strlastchr_word_boundary(char *a, char x) {
+  char *res = NULL;
+  while (*a && *a != ' ' && *a != '\n' && *a != '\t' && *a != ';' &&
+         *a != '#' && *a != '}' && *a != ')') {
+    if (*a == x) {
+      res = a;
+    }
+    ++a;
+  }
+  return res;
+}
+
+static void transform_identifier(struct val *v) {
+  char *colon;
+  if ((colon = strlastchr_word_boundary(v->V.S, ':'))) {
+    if (colon == v->V.S || colon[1] == '\0') {
+      return;
+    }
+    struct val cl, memb, funcall, cons1, cons2;
+    cons1.CharIdx = cons2.CharIdx = cl.CharIdx = memb.CharIdx =
+        funcall.CharIdx = v->CharIdx;
+    cons1.CharIdx = cons2.CharIdx = cl.FileIdx = memb.FileIdx =
+        funcall.FileIdx = v->FileIdx;
+    cl.T = funcall.T = memb.T = tyIdent;
+    funcall.V.S = "memb";
+    cl.V.S = v->V.S;
+    memb.V.S = colon + 1;
+    *colon = 0;
+    v->T = cons1.T = cons2.T = tyCons;
+    v->V.L = get_mem(sizeof(struct cons));
+    cons1.V.L = get_mem(sizeof(struct cons));
+    cons2.V.L = get_mem(sizeof(struct cons));
+    cons2.V.L->cdr.T = tyCons;
+    cons2.V.L->cdr.V.L = NULL;
+    v->V.L->car = funcall;
+    cons2.V.L->car = memb;
+    cons1.V.L->cdr = cons2;
+    cons1.V.L->car = cl;
+    v->V.L->cdr = cons1;
+    transform_identifier(&cons1.V.L->car);
+  }
+}
+
 static void actual_read(struct val *v, char *s, unsigned short fileidx,
                         char *filebegin) {
   /*
@@ -575,6 +618,7 @@ resume_loop:
           *lastidentend = 0;
         }
         lastidentend = s;
+        transform_identifier(&r);
         goto insert_part;
       }
     }
