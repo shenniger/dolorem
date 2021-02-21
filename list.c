@@ -24,6 +24,8 @@ struct val *make_int_val(long i);
 struct val *make_string_val(char *a);
 struct val *make_ident_val(char *a);
 
+static const char *format_source_loc(struct val l);
+
 struct MemAllocator {
   char *At;
   long Left;
@@ -188,24 +190,45 @@ void print_list_test(struct val list, int depth) {
   }
 }
 
+static void print_location_hint(struct val l) {
+  if (!l.FileIdx) {
+    fprintf(stderr, "near generated code \"");
+    print_list(&l);
+    fprintf(stderr, "\"\n");
+  } else {
+    const char *line;
+    char *endline;
+    char buf[255]; /* protection to prevent over-long lines
+                    * from becoming performance problems */
+    long chr;
+    get_loc_info(&l, NULL, NULL, &chr, &line);
+    strncpy(buf, line, sizeof(buf));
+    if ((endline = strchr(buf, '\n'))) {
+      *endline = 0;
+    }
+    fprintf(stderr, "     \x1B[33m%s\x1B[0m\n     ", buf);
+    while (chr--) {
+      fputc(' ', stderr);
+    }
+    fprintf(stderr, "\x1B[31m^\x1B[0m\n");
+  }
+}
+
 _Noreturn void compiler_error(struct val *l, const char *fmt, ...) {
   va_list va;
-  fprintf(stderr, "%s: ERR: ", format_source_loc(*l));
+  fprintf(stderr, "\x1B[36m%s\x1B[0m: \x1B[31mERR:\x1B[0m ",
+          format_source_loc(*l));
   va_start(va, fmt);
   vfprintf(stderr, fmt, va);
   va_end(va);
   fputs("\n", stderr);
-  if (!l->FileIdx) {
-    fprintf(stdout, "near generated code \"");
-    print_list(l);
-    fprintf(stdout, "\"\n");
-  }
+  print_location_hint(*l);
   exit(1);
 }
 
 _Noreturn void compiler_error_internal(const char *fmt, ...) {
   va_list va;
-  fputs("<compiler>: ERR: ", stderr);
+  fputs("\x1B[36m<compiler>\x1B[0m: \x1B[31mERR: \x1B[0m", stderr);
   va_start(va, fmt);
   vfprintf(stderr, fmt, va);
   va_end(va);
@@ -215,7 +238,8 @@ _Noreturn void compiler_error_internal(const char *fmt, ...) {
 
 void compiler_hint(struct val *l, const char *fmt, ...) {
   va_list va;
-  fprintf(stderr, "%s: hint: ", format_source_loc(*l));
+  fprintf(stderr, "\x1B[36m%s\x1B[0m: \x1B[33mhint:\x1B[0m ",
+          format_source_loc(*l));
   va_start(va, fmt);
   vfprintf(stderr, fmt, va);
   va_end(va);
@@ -316,25 +340,47 @@ static struct SourceFile get_source_file(unsigned short idx) {
   return *s;
 }
 
-const char *format_source_loc(struct val l) {
-  unsigned line;
+void get_loc_info(struct val *l, const char **name, long *lineno, long *chr,
+                  const char **line) {
   const char *lastline;
   const char *stop;
   const char *s;
+  long mylineno;
   struct SourceFile file;
-  file = get_source_file(l.FileIdx);
-  line = 1;
+  file = get_source_file(l->FileIdx);
+  mylineno = 1;
   lastline = file.Content;
-  stop = file.Content + l.CharIdx;
+  stop = file.Content + l->CharIdx;
   if (file.Content) {
-    for (s = file.Content; *s && s != stop; ++s) {
+    for (s = file.Content; *s; ++s) {
       if (*s == '\n') {
-        ++line;
-        lastline = s;
+        ++mylineno;
+        lastline = s + 1;
+      }
+      if (s == stop) {
+        break;
       }
     }
   }
-  return print_to_mem("%s:%i:%i", file.Name, line, stop - lastline);
+  if (chr) {
+    *chr = stop - lastline;
+  }
+  if (name) {
+    *name = file.Name;
+  }
+  if (lineno) {
+    *lineno = mylineno;
+  }
+  if (line) {
+    *line = lastline;
+  }
+}
+
+static const char *format_source_loc(struct val l) {
+  const char *name;
+  long line, chr;
+  get_loc_info(&l, &name, &line, &chr, NULL);
+  return print_to_mem("%s:%i:%i", name, line, chr);
 }
 
 static struct val lower_read(char *str, unsigned short fileidx);
@@ -394,11 +440,12 @@ static char *read_string_from_stdin(size_t *len) {
   /* TODO: this uses malloc rather than get_mem */
   i = 0;
   while (!feof(stdin)) {
-    if (i >= size) {
+    if (i - 1 >= size) {
       s = realloc(s, size <<= 1);
     }
-    i += fread(s + i, 1, size - i, stdin);
+    i += fread(s + i, 1, size - i - 1, stdin);
   }
+  s[i] = 0;
   *len = i;
   return s;
 }

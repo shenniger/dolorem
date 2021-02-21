@@ -30,7 +30,8 @@ struct cons { /* four words */
   struct val car, cdr;
 };
 
-const char *format_source_loc(struct val l);
+void get_loc_info(struct val *l, const char **name, long *lineno, long *chr,
+                  const char **line);
 _Noreturn void compiler_error(struct val *l, const char *fmt, ...);
 _Noreturn void compiler_error_internal(const char *fmt, ...);
 void compiler_hint(struct val *l, const char *fmt, ...);
