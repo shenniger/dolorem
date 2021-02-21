@@ -149,6 +149,7 @@ int module_freer(any_t item, any_t value) {
 void end_jit() {
   hashmap_iterate(map_modules, module_freer, NULL);
   hashmap_free(map_modules);
+  LLVMDisposeModule(typemod);
   LLVMOrcDisposeInstance(orcref);
   LLVMDisposeTargetMachine(tm);
   LLVMDisposeBuilder(bldr);

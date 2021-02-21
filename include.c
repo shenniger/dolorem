@@ -66,7 +66,7 @@ struct rtv *lower_include(const char *filename) {
       LLVMWriteBitcodeToFile(precompiled_module, bc_path);
       fprintf(stderr, "Precompiling %s…\n", filename);
       system(
-          print_to_mem("clang %s -o %s -fpic -shared -O9", bc_path, so_path));
+          print_to_mem("clang %s -o %s -fpic -shared -O3", bc_path, so_path));
       fprintf(stderr, "Done. %s written.\n", so_path);
     }
     precompiled_module = pcmod_before;
