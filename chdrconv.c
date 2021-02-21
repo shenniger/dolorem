@@ -144,9 +144,9 @@ static enum CXChildVisitResult structVisitor(CXCursor cursor, CXCursor parent,
   kind = clang_getCursorKind(cursor);
   if (kind == CXCursor_FieldDecl) {
     const char *name = clang_getCString(clang_getCursorSpelling(cursor));
-    printf("  (");
+    printf("  ");
     writeType(clang_getCursorType(cursor), name);
-    printf(" %s) ", name);
+    printf(" %s; ", name);
     writeLocation(cursor);
   }
 
@@ -185,6 +185,12 @@ static enum CXChildVisitResult visitor(CXCursor cursor, CXCursor parent,
     printf("defstruct %s (\n", name);
     clang_visitChildren(cursor, structVisitor, NULL);
     printf("); ");
+    writeLocation(cursor);
+  } else if (kind == CXCursor_UnionDecl) {
+    const char *name = clang_getCString(clang_getCursorSpelling(cursor));
+    printf("defstruct %s (\n union (\n", name);
+    clang_visitChildren(cursor, structVisitor, NULL);
+    printf(" );\n); ");
     writeLocation(cursor);
   } else if (kind == CXCursor_EnumDecl) {
     if (!clang_Cursor_isAnonymous(cursor)) {
