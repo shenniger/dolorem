@@ -38,6 +38,7 @@ void compiler_hint_internal(const char *fmt, ...);
 
 struct val *read_string(const char *s, const char *filename);
 struct val *read_file(const char *filename);
+struct val *read_stdin();
 
 unsigned int count_len(struct val *l);
 void print_list(struct val *l);

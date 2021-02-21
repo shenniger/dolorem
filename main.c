@@ -32,6 +32,8 @@ int main(int argc, char **argv) {
       dump_lists = 1;
     } else if (strcmp(argv[i], "--enable-precompilation") == 0) {
       enable_precompilation = 1;
+    } else if (strcmp(argv[i], "-") == 0) {
+      files[i] = read_stdin();
     } else {
       files[i] = read_file(argv[i]);
     }

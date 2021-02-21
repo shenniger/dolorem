@@ -387,6 +387,45 @@ struct val *read_file(const char *filename) {
   return copy_val(lower_read(mutcopy, ++atfile));
 }
 
+static char *read_string_from_stdin(size_t *len) {
+  char *s;
+  size_t i, size;
+  s = malloc(size = 4092);
+  /* TODO: this uses malloc rather than get_mem */
+  i = 0;
+  while (!feof(stdin)) {
+    if (i >= size) {
+      s = realloc(s, size <<= 1);
+    }
+    i += fread(s + i, 1, size - i, stdin);
+  }
+  *len = i;
+  return s;
+}
+
+struct val *read_stdin() {
+  struct SourceFile **n;
+  size_t len;
+  char *mutcopy;
+  len = 0;
+  n = lastsource ? &lastsource->Next : &lastsource;
+  *n = get_mem(sizeof(struct SourceFile));
+  lastsource = *n;
+  lastsource->Name = "<stdin>";
+  lastsource->Content = read_string_from_stdin(&len);
+  if (!lastsource->Content) {
+    struct val li;
+    memset(&li, 0, sizeof(struct val));
+    compiler_error_internal("can not find file: %s", lastsource->Name);
+  }
+  if (!firstsource) {
+    firstsource = lastsource;
+  }
+  mutcopy = get_mem(len + 1);
+  memcpy(mutcopy, lastsource->Content, len);
+  return copy_val(lower_read(mutcopy, ++atfile));
+}
+
 unsigned int count_len(struct val *l) {
   unsigned int n;
   struct val *li;

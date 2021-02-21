@@ -41,11 +41,11 @@ struct rtv *lower_include_list(const char *filename, struct val *list) {
   pcmod_before = precompiled_module;
   {
     struct stat src, so;
-    if (enable_precompilation) {
+    if (enable_precompilation && *filename != '<') {
       so_path = print_to_mem("./%s_pc.so", filename);
       stat(filename, &src);
     }
-    if (enable_precompilation && stat(so_path, &so) == 0 &&
+    if (enable_precompilation && *filename != '<' && stat(so_path, &so) == 0 &&
         src.st_mtime < so.st_mtime) {
       precompiled_module = NULL;
       if (!dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL)) {
@@ -58,7 +58,7 @@ struct rtv *lower_include_list(const char *filename, struct val *list) {
   }
   r = progn(list);
   {
-    if (precompiled_module && enable_precompilation) {
+    if (precompiled_module && enable_precompilation && *filename != '<') {
       const char *bc_path;
       bc_path = print_to_mem("%s_pc.bc", filename);
       LLVMWriteBitcodeToFile(precompiled_module, bc_path);
