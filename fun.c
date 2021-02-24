@@ -4,6 +4,7 @@
 #include "eval.h"
 #include "include.h"
 #include "jit.h"
+#include "list.h"
 
 #include <alloca.h>
 #include <assert.h>
@@ -48,9 +49,9 @@ LLVMTypeRef fun_type_to_llvm(struct funtypeprop a) {
   for (long i = 0; i < a.nparms; ++i) {
     parms[i] = a.parms[i].t.l;
   }
-  return LLVMFunctionType(a.ret.l, parms, a.nparms, 0);
+  return LLVMFunctionType(a.ret.l, parms, a.nparms, a.flags & ffVaArgs);
 }
-static struct funparm *parse_parms(struct val l, long *nparms) {
+static struct funparm *parse_parms(struct val l, long *nparms, long *flags) {
   struct funparm *r;
   long i;
   *nparms = count_len(&l);
@@ -62,6 +63,17 @@ static struct funparm *parse_parms(struct val l, long *nparms) {
   do {
     struct val *e, *name, *type;
     e = car(&l);
+    if (e->T == tyIdent) {
+      if (strcmp(e->V.S, "...") == 0) {
+        l = *cdr(&l);
+        if (!is_nil(&l)) {
+          compiler_error(e, "vaargs not last in argument list");
+        }
+        *flags |= ffVaArgs;
+        --*nparms;
+        break;
+      }
+    }
     if (e->T != tyCons) {
       compiler_error(e, "expected element of list in parameter list");
     }
@@ -112,7 +124,7 @@ struct rtv *funproto(struct val *l) {
   f = get_mem(sizeof(struct fun));
   f->name = name->V.S;
   f->type.ret = *eval_type(ret);
-  f->type.parms = parse_parms(*parms, &f->type.nparms);
+  f->type.parms = parse_parms(*parms, &f->type.nparms, &f->type.flags);
   if (lookup_fun(name->V.S)) {
     compiler_error(l, "function already exists: \"%s\"", name);
   }
@@ -145,7 +157,7 @@ struct rtv *defun(struct val *l) {
   f = get_mem(sizeof(struct fun));
   f->name = name->V.S;
   f->type.ret = *eval_type(ret);
-  f->type.parms = parse_parms(*parms, &f->type.nparms);
+  f->type.parms = parse_parms(*parms, &f->type.nparms, &f->type.flags);
   f->type.flags = ffImplemented;
   if (lookup_fun(name->V.S)) {
     compiler_error(l, "function already exists: \"%s\"", name);
@@ -389,7 +401,7 @@ struct rtt *funptr_type(struct val *l, void *prop) {
 
   f = get_mem(sizeof(struct funtypeprop));
   f->ret = *eval_type(ret);
-  f->parms = parse_parms(*parms, &f->nparms);
+  f->parms = parse_parms(*parms, &f->nparms, &f->flags);
   f->funtype = fun_type_to_llvm(*f);
   return make_rtt(LLVMPointerType(f->funtype, 0), funptr, f, 0);
 }

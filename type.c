@@ -149,8 +149,10 @@ struct rtt *make_rtt(LLVMTypeRef r, struct typeinf *info, void *prop,
 struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit_cast) {
   struct type_converter *t;
   struct rtv *r;
+  struct rtv *from;
+  from = prepare_read(a);
   for (t = type_converter_list; t; t = t->next) {
-    if ((r = call_type_converter(t->f, a, to, is_explicit_cast))) {
+    if ((r = call_type_converter(t->f, from, to, is_explicit_cast))) {
       return r;
     }
   }

@@ -1,6 +1,7 @@
 include "def.dlr";
 funproto puts (str a;) void;
-funproto printf (str a; i32 x;) void;
+funproto printf (str a; ...) void;
+funproto scanf (str fmt; ...) i32;
 
 defstruct myval (
   union (
@@ -24,8 +25,9 @@ defmacro run {
   var myval b;
   assign b:Reserved 0;
   assign b:D 300;
-  printf "hello %i\n" b:T;
+  printf "hello %i\n" (convert i32 b:T);
   printf "hello %i\n" b:Reserved;
+
  empty-rtv;
 };
 

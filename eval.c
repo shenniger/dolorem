@@ -118,10 +118,15 @@ struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
                           struct val *args) {
   LLVMValueRef *v;
   struct rtv r;
-  long i;
-  if (count_len(args) != funtype.nparms) {
+  long i, count;
+  count = count_len(args);
+  if (count != funtype.nparms && !(funtype.flags & ffVaArgs)) {
     compiler_error(args, "expected %i arguments, found %i", funtype.nparms,
                    count_len(args));
+  }
+  if ((funtype.flags & ffVaArgs) && count < funtype.nparms) {
+    compiler_error(args, "expected at least %i arguments, found %i",
+                   funtype.nparms, count_len(args));
   }
   if (funtype.nparms) {
     v = get_mem(sizeof(LLVMValueRef *) * funtype.nparms);
@@ -130,10 +135,16 @@ struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
       struct rtv *c;
       struct rtv *from;
       from = prepare_read(eval(car(args)));
-      c = convert_type(from, &funtype.parms[i].t, 0);
-      if (!c) {
-        compiler_error(car(args), "couldn't convert type \"%s\" to \"%s\"",
-                       print_type(&from->t), print_type(&funtype.parms[i].t.t));
+      if (i >= funtype.nparms) {
+        c = from; /* TODO: handle VA-ARGS properly according to
+                     the calling convention */
+      } else {
+        c = convert_type(from, &funtype.parms[i].t, 0);
+        if (!c) {
+          compiler_error(car(args), "couldn't convert type \"%s\" to \"%s\"",
+                         print_type(&from->t),
+                         print_type(&funtype.parms[i].t.t));
+        }
       }
       v[i] = c->v;
       ++i;
@@ -141,7 +152,7 @@ struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
   } else {
     v = NULL;
   }
-  r.v = LLVMBuildCall2(bldr, funtype.funtype, fun, v, funtype.nparms,
+  r.v = LLVMBuildCall2(bldr, funtype.funtype, fun, v, count,
                        funtype.ret.t.info
                            ? print_to_mem("funcall_%s", LLVMGetValueName(fun))
                            : "");
@@ -160,17 +171,17 @@ struct rtv *funcall(struct fun *a, struct val *args) {
 }
 
 struct rtv *call_fun_macro(struct fun *name, struct val *e) {
-  return ((struct rtv * (*)(struct val * e))resolve_sym(name))(e);
+  return ((struct rtv * (*)(struct val * e)) resolve_sym(name))(e);
 }
 struct rtt *call_type_macro(struct fun *name, struct val *e, void *prop) {
-  return ((struct rtt * (*)(struct val * e, void *prop))resolve_sym(name))(
-      e, prop);
+  return ((struct rtt * (*)(struct val * e, void *prop))
+              resolve_sym(name))(e, prop);
 }
 struct rtv *call_type_converter(struct fun *name, struct rtv *value,
                                 struct rtt *to, int is_explicit_cast) {
-  return ((struct rtv * (*)(struct rtv * value, struct rtt * to,
-                            int is_explicit_cast))resolve_sym(name))(
-      value, to, is_explicit_cast);
+  return ((struct rtv *
+           (*)(struct rtv * value, struct rtt * to, int is_explicit_cast))
+              resolve_sym(name))(value, to, is_explicit_cast);
 }
 
 struct rtv *funptr_to(struct val *e) {

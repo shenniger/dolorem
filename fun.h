@@ -20,7 +20,13 @@ struct funtypeprop {
   LLVMTypeRef funtype;
 };
 
-enum { ffImplemented = 1, ffMacro = 2, ffTypeMacro = 4, ffTypeConverter = 8 };
+enum {
+  ffImplemented = 1,
+  ffMacro = 2,
+  ffTypeMacro = 4,
+  ffTypeConverter = 8,
+  ffVaArgs = 16
+};
 
 struct funvar {
   unsigned int hashed_name;
