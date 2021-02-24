@@ -729,6 +729,7 @@ insert_part:
   v->V.L = get_mem(sizeof(struct cons));
   v->V.L->car = r;
   v->V.L->cdr = prototype;
+  v->V.L->cdr.CharIdx = r.CharIdx;
   if (r.T != tyCons && !groupb) {
     groupb = v->V.L;
   }
