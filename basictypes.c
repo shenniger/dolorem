@@ -3,12 +3,16 @@
 #include "eval.h"
 #include "fun.h"
 #include "jit.h"
+#include "list.h"
+#include "type.h"
 
 #include <assert.h>
+#include <llvm-c/Core.h>
+#include <llvm-c/Types.h>
 #include <stddef.h>
 
 struct typeinf *basictypes_integer, *basictypes_alias, *basictypes_pointer,
-    *basictypes_float;
+    *basictypes_float, *basictypes_array;
 
 int is_int(struct rtt *a);
 int is_float(struct rtt *a);
@@ -63,6 +67,9 @@ static const char *print_pointer_type(struct type *t) {
     return "ptr";
   }
   return print_to_mem("ptr %s", print_type(t->prop.type));
+}
+static const char *print_array_type(struct type *t) {
+  return print_to_mem("array %s", print_type(t->prop.type));
 }
 
 struct rtv *convert_alias_unwrap(struct rtv *v, struct rtt *to,
@@ -158,11 +165,12 @@ struct rtv *convert_numbers(struct rtv *v, struct rtt *to, int is_explicit) {
 static struct fun *alias_macro;
 
 void init_basictypes() {
-  struct fun *integer_macro, *float_macro, *pointer_macro;
+  struct fun *integer_macro, *float_macro, *pointer_macro, *array_macro;
   basictypes_alias = register_type_class("alias", print_alias_type);
   basictypes_integer = register_type_class("integer", print_integer_type);
   basictypes_pointer = register_type_class("pointer", print_pointer_type);
   basictypes_float = register_type_class("float", print_float_type);
+  basictypes_array = register_type_class("array", print_array_type);
 
   alias_macro = get_mem(sizeof(struct fun));
   alias_macro->name = "alias_type";
@@ -179,6 +187,7 @@ void init_basictypes() {
   integer_macro = lower_typemacroproto("integer_type");
   pointer_macro = lower_typemacroproto("pointer_type");
   float_macro = lower_typemacroproto("float_type");
+  array_macro = lower_typemacroproto("array_type");
   register_type("void", lower_typemacroproto("void_type"), NULL);
   register_type("bool", integer_macro, (void *)(0x100 | 1));
   register_type("char", integer_macro, (void *)(0x000 | 8));
@@ -191,6 +200,7 @@ void init_basictypes() {
   register_type("u32", integer_macro, (void *)(0x000 | 32));
   register_type("u64", integer_macro, (void *)(0x000 | 64));
   register_type("ptr", pointer_macro, NULL);
+  register_type("array", array_macro, NULL);
   register_type("float", float_macro, (void *)1);
   register_type("double", float_macro, (void *)2);
 
@@ -379,7 +389,8 @@ struct rtv *ptr_deref(struct val *e) {
   }
   v = prepare_read(eval(f));
   if (v->t.info != basictypes_pointer) {
-    compiler_error(e, "attempted to dereference a non-pointer");
+    compiler_error(e, "attempted to dereference a non-pointer (of type \"%s\")",
+                   print_type(&v->t));
   }
   if (!v->t.prop.any) {
     compiler_error(e, "attempted to dereference an untyped pointer");
@@ -388,7 +399,6 @@ struct rtv *ptr_deref(struct val *e) {
 }
 struct rtv *ptr_to(struct val *e) {
   struct rtv *f;
-  struct rtv *r;
   f = eval(car(e));
   if (!is_nil(cdr(e))) {
     compiler_error(e, "more arguments than expected in \"ptr-to\"");
@@ -396,9 +406,59 @@ struct rtv *ptr_to(struct val *e) {
   if (!(f->t.value_flags & vfL)) {
     compiler_error(e, "expected l-value");
   }
+  return lower_ptr_to(f);
+}
+struct rtv *lower_ptr_to(struct rtv *f) {
+  struct rtv *r;
   r = copy_rtv(*f);
   r->t.value_flags = vfR;
+  if (f->t.info == basictypes_array) {
+    /* TODO: make a proper way to access arrays */
+    LLVMValueRef indices[2];
+    /* TODO: Int64: add compatibility for 32-bit arch */
+    indices[0] = LLVMConstInt(LLVMInt64Type(), 0, 0);
+    indices[1] = LLVMConstInt(LLVMInt64Type(), 0, 0);
+    return make_rtv(
+        LLVMBuildGEP2(bldr, LLVMGetElementType(LLVMTypeOf(f->v)), f->v, indices,
+                      sizeof(indices) / sizeof(LLVMValueRef), "arrayusage"),
+        lower_pointer_type(make_rtt_from_type(
+            LLVMGetElementType(LLVMTypeOf(f->v)), f->t.prop.arr->t)),
+        vfR);
+  }
   return make_rtv(
       f->v, lower_pointer_type(make_rtt_from_type(LLVMTypeOf(f->v), f->t)),
       vfR);
+}
+
+/* arrays */
+struct rtt *lower_array_type(struct rtt *t, long size) {
+  struct arrayprop *p;
+  p = get_mem(sizeof(struct arrayprop));
+  p->t = t->t;
+  p->size = size;
+  return make_rtt(LLVMArrayType(t->l, size), basictypes_array, p, 0);
+}
+struct rtt *array_type(struct val *e, void *prop) {
+  struct rtt *t;
+  (void)prop;
+  if (!e) {
+    return make_rtt(LLVMPointerType(LLVMInt8Type(), 0), basictypes_pointer,
+                    NULL, 0);
+  }
+  if (!val_is_int(car(e))) {
+    compiler_error(e, "expected number constant, found something else");
+    /* allow for constants */
+  }
+  t = eval_type(cdr(e));
+  return lower_array_type(t, car(e)->V.I);
+}
+struct rtv *memb_array(struct rtv *array, struct val *index) {
+  struct rtv *ptr, *idx;
+  ptr = lower_ptr_to(array);
+  idx = convert_type(eval(index), lower_integer_type(64, 0),
+                     0); /* TODO: 32-bit */
+  return make_rtv(LLVMBuildGEP2(bldr, LLVMGetElementType(LLVMTypeOf(ptr->v)),
+                                ptr->v, &idx->v, 1, "indexadd"),
+                  make_rtt_from_type(LLVMTypeOf(ptr->v), *ptr->t.prop.type),
+                  vfL);
 }

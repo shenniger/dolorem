@@ -11,8 +11,13 @@ struct typealias {
   const char *name;
 };
 
+struct arrayprop {
+  long size;
+  struct type t;
+};
+
 extern struct typeinf *basictypes_integer, *basictypes_alias,
-    *basictypes_pointer, *basictypes_float;
+    *basictypes_pointer, *basictypes_float, *basictypes_array;
 
 void init_basictypes();
 void end_basictypes();
@@ -39,7 +44,13 @@ struct rtt *lower_pointer_type(struct rtt *t);
 struct rtt *pointer_type(struct val *e, void *prop);
 struct rtv *ptr_deref(struct val *e);
 struct rtv *ptr_to(struct val *e);
+struct rtv *lower_ptr_to(struct rtv *e);
 
 struct rtt *lower_alias_type(struct typealias *a);
+
+/* arrays */
+struct rtt *lower_array_type(struct rtt *t, long size);
+struct rtt *array_type(struct val *e, void *prop);
+struct rtv *memb_array(struct rtv *array, struct val *idx);
 
 #endif

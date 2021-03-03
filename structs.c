@@ -1,5 +1,6 @@
 #include "structs.h"
 
+#include "basictypes.h"
 #include "eval.h"
 #include "fun.h"
 #include "type.h"
@@ -120,13 +121,16 @@ struct rtv *memb(struct val *e) {
   long i;
   /* TODO: structs as r-values!!! */
   o = eval(car(e));
+  if (o->t.info == basictypes_array) {
+    return memb_array(o, car(cdr(e)));
+  }
+  if (o->t.info != struct_instance) {
+    compiler_error(car(e), "expected struct, found \"%s\"", print_type(&o->t));
+  }
   name = expect_ident(car(cdr(e)));
   assert(o->t.value_flags & vfL);
   if (!is_nil(cdr(cdr(e)))) {
     compiler_error(cdr(cdr(e)), "excess arguments in \"memb\"");
-  }
-  if (o->t.info != struct_instance) {
-    compiler_error(car(e), "expected struct, found \"%s\"", print_type(&o->t));
   }
   for (i = 0; i < o->t.prop.strct->nmemb; ++i) {
     if (strcmp(o->t.prop.strct->memb[i].name, name) == 0) {

@@ -235,6 +235,7 @@ defmacro continue {
 
 # Sizeof
 defmacro sizeof (make-int-const (sizeof-type (eval-type (car args)))); #TODO: L/R values???
+defmacro sizeof-expr (make-int-const (sizeof-type (unwrap-type (eval (car args)))));
 
 # Linker control
 funproto dlopen ((str a) (i32 mode)) ptr;

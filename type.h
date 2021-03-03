@@ -12,6 +12,7 @@ union typeprop { /* purely for convenience */
   struct typealias *alias;
   struct type *type;
   struct structprop *strct;
+  struct arrayprop *arr;
   uint64_t num;
 };
 
