@@ -28,11 +28,11 @@ defmacro run {
   #assign (ptr-deref (ptr-to c)) 2;
   assign b:Reserved 0;
   assign b:D 300;
-  #printf "hello %i\n" (convert i32 b:T);
-  #printf "hello %i\n" b:Reserved;
+  printf "hello %i\n" (convert i32 b:T);
+  printf "hello %i\n" b:Reserved;
   var (array 10 char) name;
   fgets (ptr-to name) (sizeof-expr name) stdin;
-  assign (memb name 4) 65;
+  assign name:4 65;
   assign (ptr-deref (strchr (ptr-to name) 10)) 0;
   printf "Hello, %s!\n" (ptr-to name);
 

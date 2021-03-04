@@ -522,6 +522,28 @@ static void transform_identifier(struct val *v) {
     cons2.V.L->cdr.T = tyCons;
     cons2.V.L->cdr.V.L = NULL;
     v->V.L->car = funcall;
+    if ((*memb.V.S == '-' &&
+         !(memb.V.S[1] == ')' || memb.V.S[1] == '}' || memb.V.S[1] == ' ' ||
+           memb.V.S[1] == '\n' || memb.V.S[1] == '\t' || memb.V.S[1] == ';' ||
+           memb.V.S[1] == '#' || memb.V.S[1] == '\0')) ||
+        (*memb.V.S >= '0' && *memb.V.S <= '9')) {
+      int isFloat;
+      char *a;
+      isFloat = 0;
+      for (a = memb.V.S; *a && *a != ' ' && *a != ')' && *a != '\n' &&
+                         *a != '\t' && *a != ';' && *a != '#' && *a != '}';
+           ++a) {
+        if (*a == '.') {
+          isFloat = 1;
+        }
+      }
+      memb.T = isFloat ? tyFloat : tyInt;
+      if (isFloat) {
+        memb.V.F = strtod(memb.V.S, NULL);
+      } else {
+        memb.V.I = strtol(memb.V.S, NULL, 10);
+      }
+    }
     cons2.V.L->car = memb;
     cons1.V.L->cdr = cons2;
     cons1.V.L->car = cl;
