@@ -126,10 +126,11 @@ struct rtv *funproto(struct val *l) {
   f->type.ret = *eval_type(ret);
   f->type.parms = parse_parms(*parms, &f->type.nparms, &f->type.flags);
   if (lookup_fun(name->V.S)) {
-    compiler_error(l, "function already exists: \"%s\"", name);
+    compiler_error(l, "function already exists: \"%s\"", name->V.S);
   }
   if (hashmap_put(map_funs, name->V.S, f) != MAP_OK) {
-    compiler_error(l, "error inserting function into hashmap: \"%s\"", name);
+    compiler_error(l, "error inserting function into hashmap: \"%s\"",
+                   name->V.S);
   }
   f->type.funtype = fun_type_to_llvm(f->type);
   return &null_rtv;
@@ -305,7 +306,10 @@ void funbody(struct fun *f, struct val *body) {
   curfn = prev;
   curllvmfn = prev2;
   end_function(f->name);
-  add_symbol_to_module(f->name, precompiled_module);
+  /*
+   * TODO: fix precompilation and then add this:
+   * add_symbol_to_module(f->name, precompiled_module);
+   */
 }
 
 struct rtv *macroproto(struct val *l) {

@@ -64,6 +64,7 @@ funproto is-int ((rtt v)) i32;
 funproto is-float ((rtt v)) i32;
 funproto lookup-fun ((str v)) fun;
 funproto prepare-read ((rtv a)) rtv;
+funproto add-symbol-to-module ((str a) (LLVMModuleRef mod)) void;
 
 # for quote
 funproto make-nil-val () val;
