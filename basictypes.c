@@ -69,7 +69,8 @@ static const char *print_pointer_type(struct type *t) {
   return print_to_mem("ptr %s", print_type(t->prop.type));
 }
 static const char *print_array_type(struct type *t) {
-  return print_to_mem("array %i %s", t->prop.arr->size, print_type(&t->prop.arr->t));
+  return print_to_mem("array %i %s", t->prop.arr->size,
+                      print_type(&t->prop.arr->t));
 }
 
 struct rtv *convert_alias_unwrap(struct rtv *v, struct rtt *to,
@@ -395,7 +396,7 @@ struct rtv *ptr_deref(struct val *e) {
   if (!v->t.prop.any) {
     compiler_error(e, "attempted to dereference an untyped pointer");
   }
-  return make_rtv(v->v, make_rtt_from_type(NULL, *v->t.prop.type), vfL);
+  return make_rtv_from_type(v->v, *v->t.prop.type, vfL);
 }
 struct rtv *ptr_to(struct val *e) {
   struct rtv *f;
@@ -457,8 +458,8 @@ struct rtv *memb_array(struct rtv *array, struct val *index) {
   ptr = lower_ptr_to(array);
   idx = convert_type(eval(index), lower_integer_type(64, 0),
                      0); /* TODO: 32-bit */
-  return make_rtv(LLVMBuildGEP2(bldr, LLVMGetElementType(LLVMTypeOf(ptr->v)),
-                                ptr->v, &idx->v, 1, "indexadd"),
-                  make_rtt_from_type(LLVMTypeOf(ptr->v), *ptr->t.prop.type),
-                  vfL);
+  return make_rtv_from_type(
+      LLVMBuildGEP2(bldr, LLVMGetElementType(LLVMTypeOf(ptr->v)), ptr->v,
+                    &idx->v, 1, "indexadd"),
+      *ptr->t.prop.type, vfL);
 }

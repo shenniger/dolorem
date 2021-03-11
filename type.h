@@ -105,6 +105,14 @@ inline struct rtv *make_rtv(LLVMValueRef v, struct rtt *t,
   r.t.value_flags = value_flags;
   return copy_rtv(r);
 }
+inline struct rtv *make_rtv_from_type(LLVMValueRef v, struct type t,
+                                      uint32_t value_flags) {
+  struct rtv r;
+  r.v = v;
+  r.t = t;
+  r.t.value_flags = value_flags;
+  return copy_rtv(r);
+}
 inline struct rtv *make_twin_rtv(LLVMValueRef v, struct rtv *old) {
   struct rtv *r;
   r = copy_rtv(*old);
@@ -118,6 +126,9 @@ inline struct rtv *empty_rtv() {
   return b;
 }
 inline struct rtt *unwrap_type(struct rtv *a) {
+  if (a->t.value_flags & vfL) {
+    return make_rtt_from_type(LLVMGetElementType(LLVMTypeOf(a->v)), a->t);
+  }
   return make_rtt_from_type(LLVMTypeOf(a->v), a->t);
 }
 inline struct type *unwrap_type_t(struct rtv *a) { return &a->t; }

@@ -3,6 +3,7 @@
 #include "eval.h"
 #include "llvmext.h"
 #include <assert.h>
+#include <llvm-c/Core.h>
 #include <string.h>
 
 map_t map_types;
@@ -23,6 +24,8 @@ struct rtv *make_twin_rtv(LLVMValueRef v, struct rtv *old);
 struct rtt *unwrap_type(struct rtv *a);
 LLVMTypeRef unwrap_llvm_type(struct rtt *a);
 struct type *unwrap_type_t(struct rtv *a);
+struct rtv *make_rtv_from_type(LLVMValueRef v, struct type t,
+                               uint32_t value_flags);
 
 struct rtv *convert_equal_types(struct rtv *v, struct rtt *to,
                                 int is_explicit) {
@@ -111,8 +114,8 @@ struct rtt *eval_type(struct val *e) {
 
 struct rtv *prepare_read(struct rtv *v) {
   if (v->t.value_flags & vfL) {
-    return make_rtv(LLVMBuildLoad(bldr, v->v, "lval_load"),
-                    make_rtt_from_type(NULL, v->t), vfR);
+    return make_rtv_from_type(LLVMBuildLoad(bldr, v->v, "lval_load"), v->t,
+                              vfR);
   }
   return v;
 }
