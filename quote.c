@@ -19,7 +19,7 @@ static struct rtv *val_rtv(LLVMValueRef a) {
   return make_rtv(a, lower_alias_type(rt_val_type), vfR);
 }
 
-static LLVMValueRef fun_cons, fun_nil, fun_int, fun_string, fun_ident;
+static LLVMValueRef fun_cons, fun_nil, fun_int, fun_string, fun_ident, fun_char;
 
 static LLVMValueRef require_function(const char *name, LLVMTypeRef a) {
   LLVMValueRef fun;
@@ -38,6 +38,8 @@ static void setup_quote() {
   fun_nil = require_function("make_nil_val", LLVMFunctionType(t[1], t, 0, 0));
   t[0] = LLVMInt64Type();
   fun_int = require_function("make_int_val", LLVMFunctionType(t[1], t, 1, 0));
+  t[0] = LLVMInt8Type();
+  fun_char = require_function("make_char_val", LLVMFunctionType(t[1], t, 1, 0));
   t[0] = LLVMPointerType(LLVMInt8Type(), 0);
   fun_string =
       require_function("make_string_val", LLVMFunctionType(t[1], t, 1, 0));
@@ -75,6 +77,9 @@ LLVMValueRef lower_quote(struct val *e, int quasi) {
   case tyString:
     v = LLVMBuildGlobalStringPtr(bldr, e->V.S, "quote_str_literal");
     return LLVMBuildCall(bldr, fun_string, &v, 1, "quote_funcall_str");
+  case tyChar:
+    v = LLVMConstInt(LLVMInt8Type(), e->V.I, 0);
+    return LLVMBuildCall(bldr, fun_char, &v, 1, "quote_funcall_char");
   default:
     compiler_error_internal("invalid type in lower_quote: %i", (int)e->T);
   }

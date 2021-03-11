@@ -7,6 +7,14 @@ funproto strchr (str haystack; char needle;) (ptr u8);
 funproto system (str cmd;) i32;
 funproto snprintf (str buf; u64 size; ...) i64;
 
+defmacro debug-sizeof {
+  var (array 255 char) dummy;
+  printf "%i\n" (sizeof-expr dummy);
+  printf "%i\n" (sizeof-expr dummy:0);
+ empty-rtv;
+};
+debug-sizeof;
+
 defstruct myval (
   union (
     u8 T; # Found in list.h:22:17
@@ -21,7 +29,7 @@ defstruct myval (
   u16 FileIdx; # Found in list.h:27:18
 ); # Found in list.h:18:8
 
-defun main () void {
+defun main2 () void {
   #printf "sizeof int: %i\n" (sizeof-type (eval-type (quote i32)));
   #printf "sizeof int: %i\n" (sizeof i32);
   #printf "sizeof long: %i\n" (sizeof-type (eval-type (quote i64)));
@@ -34,24 +42,46 @@ defun main () void {
   printf "hello %i\n" b:Reserved;
   var (array 10 char) name;
   fgets (ptr-to name) (sizeof-expr name) stdin;
-  assign name:4 65;
+  assign name:4 '\n';
   assign (ptr-deref (strchr (ptr-to name) 10)) 0;
   printf "Hello, %s!\n" (ptr-to name);
 };
 
 defmacro run {
-  main;
+  main2;
  empty-rtv;
 };
+#run;
 
 defmacro compile {
   := mod (LLVMModuleCreateWithName "test");
   copy_symbol_to_module "main" mod;
   LLVMWriteBitcodeToFile mod "tmp.bc";
   var (array 255 char) cmd;
-  snprintf cmd 255 "clang %s -o test -O3" "tmp.bc";
+  snprintf (ptr-to cmd) 255 "clang %s -o test -O3" "tmp.bc";
   system (ptr-to cmd);
  empty-rtv;
 };
 
-compile;
+#compile;
+
+defun repl () void {
+  var (array 255 char) buf;
+  var (array 128 char) filename;
+  := done 0;
+  := n 0;
+  while (not done) {
+    printf "> ";
+    fgets (ptr-to buf) 255 stdin;
+    snprintf (ptr-to filename) 128 "<repl-%i>" n;
+    := list (read-string (ptr-to buf) (ptr-to filename));
+    := fun (lower-macroproto (ptr-to filename));
+    funbody fun (car list);
+    call-fun-macro fun list;
+    assign n (+ n 1);
+  };
+};
+defun main () void { repl; };
+
+defmacro run-repl { repl; empty-rtv; };
+run-repl;

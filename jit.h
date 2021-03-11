@@ -18,6 +18,7 @@ extern void *dlhdl;
 extern LLVMTargetMachineRef tm;
 extern LLVMOrcSymbolResolverFn orcresolver;
 extern map_t map_modules;
+extern int dump_modules, dump_lists;
 
 void handle_llvm_error(LLVMErrorRef e);
 struct fun;

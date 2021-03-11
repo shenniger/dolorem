@@ -8,7 +8,7 @@ char *print_to_mem(const char *fmt, ...);
 void end_alloc();
 
 /* reader */
-enum { tyCons = 1, tyInt, tyFloat, tyString, tyIdent, tyEnd };
+enum { tyCons = 1, tyInt, tyFloat, tyString, tyIdent, tyChar, tyEnd };
 union LEVal { /* one word */
   long I;
   double F; /* TODO: use a float on a 32-bit architecture */
@@ -79,6 +79,12 @@ inline struct val *make_nil_val() { return make_val(tyCons); }
 inline struct val *make_int_val(long i) {
   struct val *r;
   r = make_val(tyInt);
+  r->V.I = i;
+  return r;
+}
+inline struct val *make_char_val(char i) {
+  struct val *r;
+  r = make_val(tyChar);
   r->V.I = i;
   return r;
 }

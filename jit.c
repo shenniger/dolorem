@@ -18,6 +18,7 @@ LLVMTargetMachineRef tm;
 void *dlhdl;
 LLVMOrcSymbolResolverFn orcresolver;
 map_t map_modules;
+int dump_modules, dump_lists;
 
 void handle_llvm_error(LLVMErrorRef e) {
   if (e) {

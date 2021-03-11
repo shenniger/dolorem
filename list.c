@@ -23,6 +23,7 @@ struct val *make_nil_val();
 struct val *make_int_val(long i);
 struct val *make_string_val(char *a);
 struct val *make_ident_val(char *a);
+struct val *make_char_val(char i);
 
 static const char *format_source_loc(struct val l);
 
@@ -137,6 +138,9 @@ void print_list(struct val *l) {
   case tyString:
     printf("\"%s\"", list.V.S);
     break;
+  case tyChar:
+    printf("\'%c\'", (char)list.V.I);
+    break;
   default:
     compiler_error(&list, "while printing: found invalid list element (T=%i)",
                    list.T);
@@ -182,6 +186,13 @@ void print_list_test(struct val list, int depth) {
       fputc(' ', stderr);
     }
     fprintf(stderr, "\"%s\" (quoted)\n", list.V.S);
+    break;
+  case tyChar:
+    fprintf(stderr, "%s:", format_source_loc(list));
+    for (i = 0; i < depth; ++i) {
+      fputc(' ', stderr);
+    }
+    fprintf(stderr, "\'%d\' (quoted)\n", (char)list.V.I);
     break;
   default:
     compiler_error(&list, "while printing: found invalid list element (T=%i)",
@@ -279,11 +290,11 @@ char *readFile(const char *name, size_t *len) {
   return s;
 }
 
-static void prepare_string(char *s, struct val *e) {
+static void prepare_string(char *s, struct val *e, char type) {
   char *r, *w;
   for (r = s, w = s; *r;) {
-    if (*r == '\"') {
-      for (++r; *r && *r != '\"'; ++r)
+    if (*r == type) {
+      for (++r; *r && *r != type; ++r)
         ;
       if (!*r) {
         compiler_error_internal(
@@ -299,6 +310,9 @@ static void prepare_string(char *s, struct val *e) {
         break;
       case '\"':
         *w++ = '\"';
+        break;
+      case '\'':
+        *w++ = '\'';
         break;
       case 'n':
         *w++ = '\n';
@@ -668,7 +682,25 @@ resume_loop:
         ++s;
       }
       s[-1] = 0;
-      prepare_string(r.V.S, &r);
+      prepare_string(r.V.S, &r, '"');
+      goto insert_part;
+    case '\'':
+      r.T = tyChar;
+      r.CharIdx = s - filebegin;
+      ++s;
+      r.V.S = s;
+      for (; *s != '\''; ++s) {
+        if (!*s) {
+          compiler_error(&r, "missing closing '\''");
+        }
+      }
+      *s = 0;
+      ++s;
+      prepare_string(r.V.S, &r, '\'');
+      if (r.V.S[1] != 0) {
+        compiler_error(&r, "character literal too long");
+      }
+      r.V.I = *r.V.S;
       goto insert_part;
     case '#':
       for (; *s != '\n' && *s; ++s)

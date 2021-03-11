@@ -5,6 +5,7 @@
 #include "global.h"
 #include "jit.h"
 #include <assert.h>
+#include <llvm-c/Core.h>
 #include <stddef.h>
 
 void init_eval() {
@@ -84,6 +85,9 @@ struct rtv *eval(struct val *e) {
   case tyString:
     return make_rtv(LLVMBuildGlobalStringPtr(bldr, e->V.S, "strliteral"),
                     lower_pointer_type(lower_integer_type(8, 0)), vfR);
+  case tyChar:
+    return make_rtv(LLVMConstInt(LLVMInt8Type(), e->V.I, 0),
+                    lower_integer_type(8, 0), vfR);
   default:
     assert(!"unknown type");
   }

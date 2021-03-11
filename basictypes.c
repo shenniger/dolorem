@@ -69,7 +69,7 @@ static const char *print_pointer_type(struct type *t) {
   return print_to_mem("ptr %s", print_type(t->prop.type));
 }
 static const char *print_array_type(struct type *t) {
-  return print_to_mem("array %s", print_type(&t->prop.arr->t));
+  return print_to_mem("array %i %s", t->prop.arr->size, print_type(&t->prop.arr->t));
 }
 
 struct rtv *convert_alias_unwrap(struct rtv *v, struct rtt *to,

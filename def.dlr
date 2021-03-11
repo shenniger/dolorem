@@ -65,12 +65,17 @@ funproto is-float ((rtt v)) i32;
 funproto lookup-fun ((str v)) fun;
 funproto prepare-read ((rtv a)) rtv;
 funproto add-symbol-to-module ((str a) (LLVMModuleRef mod)) void;
+funproto read-string ((str s) (str filename)) val;
+funproto lower-macroproto ((str name)) ptr;
+funproto funbody ((ptr fun) (val body)) void;
+funproto print-list ((val v)) void;
 
 # for quote
 funproto make-nil-val () val;
 funproto make-int-val (i64 x;) val;
 funproto make-string-val (str x;) val;
 funproto make-ident-val (str x;) val;
+funproto make-char-val (char x;) val;
 funproto cons (val a; val b;) val;
 
 # List functions

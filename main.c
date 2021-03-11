@@ -13,8 +13,6 @@
 #include <alloca.h>
 #include <string.h>
 
-int dump_modules, dump_lists;
-
 int main(int argc, char **argv) {
   int i;
   int read_filename;

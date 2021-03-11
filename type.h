@@ -35,7 +35,6 @@ struct rtv { /* run-time value */
 };
 
 typedef const char *(*type_printer_fun)(struct type *t);
-typedef long (*type_sizeof_fun)(struct type *t);
 
 struct typeinf {
   const char *name;
