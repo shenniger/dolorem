@@ -3,7 +3,6 @@
 #include "fun.h"
 #include "global.h"
 #include "list.h"
-#include "main.h"
 #include <dlfcn.h>
 #include <stddef.h>
 #include <stdio.h>
