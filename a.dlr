@@ -9,6 +9,8 @@ funproto snprintf (str buf; u64 size; ...) i64;
 
 defmacro debug-sizeof {
   var (array 255 char) dummy;
+  var (ptr char) dummy2;
+  printf "%i\n" (sizeof-expr (ptr-deref dummy2));
   printf "%i\n" (sizeof-expr dummy);
   printf "%i\n" (sizeof-expr dummy:0);
  empty-rtv;
@@ -72,7 +74,12 @@ defun repl () void {
   := n 0;
   while (not done) {
     printf "> ";
+    assign buf:0 0;
     fgets (ptr-to buf) 255 stdin;
+    cond (= buf:0 0) {
+      puts "";
+      break;
+    };
     snprintf (ptr-to filename) 128 "<repl-%i>" n;
     := list (read-string (ptr-to buf) (ptr-to filename));
     := fun (lower-macroproto (ptr-to filename));

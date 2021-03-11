@@ -195,8 +195,8 @@ void print_list_test(struct val list, int depth) {
     fprintf(stderr, "\'%d\' (quoted)\n", (char)list.V.I);
     break;
   default:
-    compiler_error(&list, "while printing: found invalid list element (T=%i)",
-                   list.T);
+    compiler_hint(&list, "while printing: found invalid list element (T=%i)",
+                  list.T);
     break;
   }
 }
@@ -712,6 +712,7 @@ resume_loop:
         r.CharIdx = s - filebegin;
         compiler_error(&r, "unexpected \";\"");
       }
+      v->CharIdx = s - filebegin;
       copy = groupb->car;
       groupb->car.T = tyCons;
       groupb->car.V.L = get_mem(sizeof(struct cons));
