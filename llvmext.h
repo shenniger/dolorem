@@ -19,6 +19,9 @@ void AddGlobalDef(LLVMModuleRef m, LLVMTypeRef ty, const char *name);
 
 long GetTypeSize(LLVMModuleRef m, LLVMTypeRef ty);
 
+void *GetBuilderPosition(LLVMBuilderRef b);
+void SetBuilderPosition(LLVMBuilderRef b, void *pos); /* consumes pos */
+
 #ifdef __cplusplus
 }
 #endif

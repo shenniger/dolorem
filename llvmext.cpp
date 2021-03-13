@@ -33,3 +33,19 @@ void AddGlobalDef(LLVMModuleRef m, LLVMTypeRef ty, const char *name) {
 long GetTypeSize(LLVMModuleRef m, LLVMTypeRef ty) {
   return DataLayout(unwrap(m)).getTypeAllocSize(unwrap(ty));
 }
+
+struct Pos {
+  BasicBlock *blk;
+  BasicBlock::iterator point;
+};
+void *GetBuilderPosition(LLVMBuilderRef b) {
+  return (void *)new Pos{unwrap(b)->GetInsertBlock(),
+                         unwrap(b)->GetInsertPoint()};
+}
+void SetBuilderPosition(LLVMBuilderRef b, void *pos) { /* consumes pos */
+  Pos *p = (Pos *)pos;
+  if (p->blk) {
+    unwrap(b)->SetInsertPoint(p->blk, p->point);
+  }
+  delete p;
+}

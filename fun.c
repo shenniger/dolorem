@@ -5,6 +5,7 @@
 #include "include.h"
 #include "jit.h"
 #include "list.h"
+#include "llvmext.h"
 
 #include <alloca.h>
 #include <assert.h>
@@ -159,7 +160,7 @@ struct rtv *defun(struct val *l) {
   f->name = name->V.S;
   f->type.ret = *eval_type(ret);
   f->type.parms = parse_parms(*parms, &f->type.nparms, &f->type.flags);
-  f->type.flags = ffImplemented;
+  f->type.flags |= ffImplemented;
   if (lookup_fun(name->V.S)) {
     compiler_error(l, "function already exists: \"%s\"", name);
   }
@@ -168,8 +169,35 @@ struct rtv *defun(struct val *l) {
   }
 
   f->type.funtype = fun_type_to_llvm(f->type);
-  funbody(f, body);
+  funbody(f, body, 0);
   return &null_rtv;
+}
+struct rtv *freestanding_lambda(struct val *l) {
+  struct val *parms, *ret, *body;
+  struct fun *f;
+  parms = car(l);
+  if (parms->T != tyCons) {
+    compiler_error(parms, "expected list of parameters in function definition");
+  }
+  ret = car(cdr(l));
+  if (!is_nil(cdr(cdr(cdr(cdr(l)))))) {
+    compiler_error(l, "more arguments than expected in function definition");
+  }
+  body = car(cdr(cdr(l)));
+  if (is_nil(body)) {
+    compiler_error(l, "expected function body");
+  }
+
+  f = get_mem(sizeof(struct fun));
+  f->name = print_to_mem("<anonymous-fun-%i-%i-%i>", l->FileIdx, l->FileIdx,
+                         l->CharIdx);
+  f->type.ret = *eval_type(ret);
+  f->type.parms = parse_parms(*parms, &f->type.nparms, &f->type.flags);
+  f->type.flags |= ffImplemented | ffLambda;
+  f->type.funtype = fun_type_to_llvm(f->type);
+  funbody(f, body, 1);
+  return make_rtv(LLVMGetNamedFunction(mod, f->name),
+                  make_rtt(f->type.funtype, funptr, &f->type, 0), vfR);
 }
 
 struct fun *lower_macroproto(const char *name) {
@@ -246,11 +274,12 @@ struct funvar *lookup_in_fun_scope(struct fun *f, const char *name) {
   return NULL;
 }
 
-void funbody(struct fun *f, struct val *body) {
+void funbody(struct fun *f, struct val *body, int same_mod) {
   LLVMBasicBlockRef entry;
   LLVMValueRef fun;
   struct fun *prev;
   LLVMValueRef prev2;
+  void *prev3;
   struct rtv ret;
   long i;
   LLVMValueRef *params;
@@ -259,10 +288,13 @@ void funbody(struct fun *f, struct val *body) {
     return;
   }
 
-  begin_new_function();
+  if (!same_mod) {
+    begin_new_function();
+  }
   fun = LLVMAddFunction(mod, f->name, f->type.funtype);
   fun_set_proper_parm_names(f, fun);
 
+  prev3 = GetBuilderPosition(bldr);
   entry = LLVMAppendBasicBlock(fun, "entry");
   LLVMPositionBuilderAtEnd(bldr, entry);
 
@@ -305,7 +337,10 @@ void funbody(struct fun *f, struct val *body) {
   }
   curfn = prev;
   curllvmfn = prev2;
-  end_function(f->name);
+  SetBuilderPosition(bldr, prev3);
+  if (!same_mod) {
+    end_function(f->name);
+  }
   /*
    * TODO: fix precompilation and then add this:
    * add_symbol_to_module(f->name, precompiled_module);
@@ -334,7 +369,7 @@ struct rtv *defmacro(struct val *l) {
   if (name->T != tyIdent) {
     compiler_error(name, "expected identifier");
   }
-  funbody(lower_macroproto(name->V.S), body);
+  funbody(lower_macroproto(name->V.S), body, 0);
   return &null_rtv;
 }
 struct rtv *typemacroproto(struct val *l) {
@@ -359,7 +394,7 @@ struct rtv *deftypemacro(struct val *l) {
   if (name->T != tyIdent) {
     compiler_error(name, "expected identifier");
   }
-  funbody(lower_typemacroproto(name->V.S), body);
+  funbody(lower_typemacroproto(name->V.S), body, 0);
   return &null_rtv;
 }
 
@@ -385,7 +420,7 @@ struct rtv *deftypeconverter(struct val *l) {
   if (name->T != tyIdent) {
     compiler_error(name, "expected identifier");
   }
-  funbody(lower_typeconverterproto(name->V.S), body);
+  funbody(lower_typeconverterproto(name->V.S), body, 0);
   return &null_rtv;
 }
 

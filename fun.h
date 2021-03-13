@@ -25,7 +25,8 @@ enum {
   ffMacro = 2,
   ffTypeMacro = 4,
   ffTypeConverter = 8,
-  ffVaArgs = 16
+  ffVaArgs = 16,
+  ffLambda = 32
 };
 
 struct funvar {
@@ -76,6 +77,7 @@ struct funvar *lookup_in_fun_scope(struct fun *f, const char *name);
 
 struct rtv *funproto(struct val *l);
 struct rtv *defun(struct val *l);
+struct rtv *freestanding_lambda(struct val *l);
 struct fun *lower_macroproto(const char *name);
 struct rtv *macroproto(struct val *l);
 struct rtv *defmacro(struct val *l);
@@ -87,6 +89,6 @@ struct rtv *typeconverterproto(struct val *l);
 struct rtv *deftypeconverter(struct val *l);
 struct rtv *compiledfunction(struct val *l);
 
-void funbody(struct fun *f, struct val *body);
+void funbody(struct fun *f, struct val *body, int same_mod);
 
 #endif
