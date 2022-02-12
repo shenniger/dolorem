@@ -8,7 +8,7 @@ CFLAGS ?=
 CXXFLAGS ?= 
 LINKFLAGS ?=
 
-LLVMPREFIX ?= ~
+LLVMPREFIX ?= /usr
 LIBCLANGPREFIX ?= /usr/lib/llvm-3.9
 
 %.o: %.c *.h

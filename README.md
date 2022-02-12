@@ -1,13 +1,6 @@
-This project turns the idea of compile-time function execution as a metaprogramming
-mechanism up to eleven.
-
 ## Overview
 The idea is to have a programming language with macros are so powerful, they
 can even call directly into the code generator.
-
-Combine that with the macro-friendly S-expression syntax and you end up with a truly
-programmable programming language, just like the old Lisps. Unlike the old Lisps,
-though, Dolorem is statically typed and uses LLVM to compile everything to fast machine code.
 
 ## Example
 ```
@@ -36,11 +29,15 @@ called `lower-not` which calls `LLVMBuildNot` and generates type information
 for the front-end.
 
 ## Dependencies
-* Linux (sorry … didn't get around to porting this to anything else yet)
+* Linux
 * Modern C/C++ compiler
-* LLVM 10+
+* LLVM 10+ (NOTE: LLVM 13 support is WIP)
 
 ## Compiling it
 Just type `make`. You may need to specify the environment variables `CC`, `CXX` and `LLVMPREFIX`.
 
 If you encounter any compiler errors, try running `make report` or use another version of LLVM.
+
+## Examples
+You can find some examples -- including a pong implementation and a REPL for testing --
+in the example folder.
