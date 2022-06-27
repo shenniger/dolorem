@@ -1,0 +1,226 @@
+include "def.dlr";
+include "sdl2.dlr";
+
+funproto snprintf (str buf; u64 size; ...) i64;
+funproto puts (str a;) void;
+funproto printf (str a; i32 x;) void;
+funproto sin (double x;) double;
+funproto cos (double x;) double;
+funproto system (str x;) i32;
+
+# some C helper functions
+link-in ponghelperfun.so;
+funproto lowerDrawRect (SDL_Renderer renderer; i32 x; i32 y; i32 w; i32 h;) void;
+funproto processEvents (ptr key;) i32;
+
+defun drawRect (SDL_Renderer renderer; i32 x; i32 y; i32 w; i32 h;) void
+  (lowerDrawRect renderer (* (/ x 3) 2) (* (/ y 3) 2) (* (/ w 3) 2) (* (/ h 3) 2));
+
+defglobal i32 running;
+defglobal double x;
+defglobal double y;
+defglobal double vx;
+defglobal double vy;
+defglobal double speed;
+defglobal i32 p1;
+defglobal i32 p2;
+defglobal i32 vp1;
+defglobal i32 vp2;
+defglobal i32 ball-width;
+defglobal i32 ball-height;
+defglobal ptr keyboard;
+
+defun calc-angle (double y1; double y2; i32 height;) double {
+  var double rely (+ y1 (- (/ height 2) y2));
+  assign rely (/ rely (/ height 2.0));
+ (* rely (/ 3.142 5.0))
+};
+
+defun rect-intersection (i32 fst-x; i32 fst-y; i32 fst-w; i32 fst-h;
+                         i32 snd-x; i32 snd-y; i32 snd-w; i32 snd-h;) i32 {
+  := r 1;
+  := fst-xm (+ fst-x fst-w);
+  := snd-xm (+ snd-x snd-w);
+  := fst-ym (+ fst-y fst-h);
+  := snd-ym (+ snd-y snd-h);
+  cond (> snd-x fst-x)
+    (assign fst-x snd-x);
+  cond (< snd-xm fst-xm)
+    (assign fst-xm snd-xm);
+  cond (<= fst-xm fst-x)
+    (assign r 0);
+  
+  cond (> snd-y fst-y)
+    (assign fst-y snd-y);
+  cond (< snd-ym fst-ym)
+    (assign fst-ym snd-ym);
+  cond (<= fst-ym fst-y)
+    (assign r 0);
+ r
+};
+
+defun draw (SDL_Renderer renderer;) void {
+  SDL_SetRenderDrawColor renderer 0 0 0 0;
+  SDL_RenderClear renderer;
+  SDL_SetRenderDrawColor renderer 255 255 255 0;
+  := center-width 10;
+  assign ball-width 20;
+  assign ball-height 20;
+  drawRect renderer 60 p1 100 300;
+  drawRect renderer 1120 p2 100 300;
+  drawRect renderer (- 640 (/ center-width 2)) 0 center-width 960;
+  drawRect renderer (convert i32 x) (convert i32 y) ball-width ball-height;
+  SDL_RenderPresent renderer;
+};
+
+defun events () void {
+  var i32 code;
+  while { assign code (processEvents keyboard); code } {
+    cond (= code 2) { # quit
+      assign running 0;
+    };
+    cond (= code 3) { # escape
+      assign running 0;
+    };
+    cond (= code 7) { # up
+      assign p1 (- p1 vp1);
+    };
+    cond (= code 11) { # down
+      assign p1 (+ p1 vp1);
+    };
+  };
+};
+
+defun process-ai () void {
+  cond (< y (+ p2 150))
+    (assign p2 (- p2 vp2));
+  cond (> y (+ p2 150))
+    (assign p2 (+ p2 vp2));
+};
+
+defun update-ball () void {
+  cond (> vx 16.0)
+    (assign vx 16.0);
+  cond (> vy 16.0)
+    (assign vy 16.0);
+
+  assign x (+ x vx);
+  assign y (+ y vy);
+
+  cond (< y 0) {
+    assign y 0;
+    assign vy (* vy -1.0);
+  };
+  cond (>= (+ y ball-height) 960) {
+    assign y (- 960 (- ball-height 1));
+    assign vy (* vy -1.0);
+  };
+  cond (< x 0) {
+    assign x 160;
+    assign y (+ p2 150);
+    assign vx 8.0;
+    assign speed 8.0;
+  };
+  cond (>= (+ x ball-width) 1280) {
+    assign x (- 1120 ball-width);
+    assign y (+ p2 150);
+    assign vx -8.0;
+    assign speed 8.0;
+  };
+};
+
+defun update-players () void {
+  cond (< p1 0) {
+    assign p1 0;
+  };
+  cond (> (+ p1 300) 960) {
+    assign p1 (- 960 300);
+  };
+  cond (< p2 0) {
+    assign p2 0;
+  };
+  cond (> (+ p2 300) 960) {
+    assign p2 (- 960 300);
+  };
+};
+
+defun check-for-intersections () void {
+  cond (rect-intersection 60 p1 100 300 (convert i32 x) (convert i32 y) ball-width ball-height) {
+    assign x 160;
+    assign speed (* speed 1.05);
+    := angle (calc-angle (convert double p1) y 300);
+    assign vx (* speed (cos angle));
+    assign vy (* speed (* (if (> vy 0.0) -1.0 1.0) (sin angle)));
+  };
+  cond (rect-intersection 1120 p2 100 300 (convert i32 x) (convert i32 y) ball-width ball-height) {
+    assign x (- 1120 ball-width);
+    assign speed (* speed 1.05);
+    := angle (calc-angle (convert double p2) y 300);
+    assign vx (* (* speed (cos angle)) -1.0);
+    assign vy (* speed (* (if (> vy 0.0) -1.0 1.0) (sin angle)));
+  };
+};
+
+defun main-loop (SDL_Renderer renderer;) i32 {
+  events;
+  process-ai;
+  update-ball;
+  update-players;
+  check-for-intersections;
+  draw renderer;
+ running
+};
+
+defun main () i32 {
+  := window (SDL_CreateWindow "Pong" 0 0 853 640 4);
+  := renderer (SDL_CreateRenderer window -1 4);
+  assign keyboard (SDL_GetKeyboardState keyboard);
+  assign running 1;
+  assign p1 330;
+  assign p2 330;
+  assign x 640.0;
+  assign y 480.0;
+  assign vp1 20;
+  assign vp2 6;
+  assign vx 8.0;
+  assign vy -0.5;
+  assign speed 8.0;
+  while (main-loop renderer) (progn);
+  SDL_DestroyRenderer renderer;
+  SDL_DestroyWindow window;
+ 0
+};
+
+defmacro compile {
+  := mod (LLVMModuleCreateWithName "test");
+  copy_symbol_to_module "main" mod;
+  copy_symbol_to_module "main_loop" mod;
+  copy_symbol_to_module "check_for_intersections" mod;
+  copy_symbol_to_module "update_players" mod;
+  copy_symbol_to_module "drawRect" mod;
+  copy_symbol_to_module "calc_angle" mod;
+  copy_symbol_to_module "running" mod;
+  copy_symbol_to_module "x" mod;
+  copy_symbol_to_module "y" mod;
+  copy_symbol_to_module "vx" mod;
+  copy_symbol_to_module "vy" mod;
+  copy_symbol_to_module "speed" mod;
+  copy_symbol_to_module "p1" mod;
+  copy_symbol_to_module "p2" mod;
+  copy_symbol_to_module "vp1" mod;
+  copy_symbol_to_module "vp2" mod;
+  copy_symbol_to_module "ball_width" mod;
+  copy_symbol_to_module "ball_height" mod;
+  copy_symbol_to_module "keyboard" mod;
+  copy_symbol_to_module "rect_intersection" mod;
+  copy_symbol_to_module "draw" mod;
+  copy_symbol_to_module "events" mod;
+  copy_symbol_to_module "process_ai" mod;
+  copy_symbol_to_module "update_ball" mod;
+  LLVMWriteBitcodeToFile mod "tmp.bc";
+  var (array 255 char) cmd;
+  snprintf (ptr-to cmd) 255 "clang %s -lSDL2 ponghelperfun.so -lm -o pongtest -O3" "tmp.bc";
+  system (ptr-to cmd);
+ empty-rtv;
+};
+compile;

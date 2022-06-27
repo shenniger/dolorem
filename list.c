@@ -107,39 +107,39 @@ char *print_to_mem(const char *fmt, ...) {
   va_end(va);
   return str;
 }
-void print_list(struct val *l) {
+void print_list(struct val *l, FILE *to) {
   struct val list;
   list = *l;
   switch (list.T) {
   case tyCons:
     if (list.V.L) {
       if (list.V.L->car.T == tyCons) {
-        fputc('(', stdout);
-        print_list(&list.V.L->car);
-        fputc(')', stdout);
+        fputc('(', to);
+        print_list(&list.V.L->car, to);
+        fputc(')', to);
       } else {
-        print_list(&list.V.L->car);
+        print_list(&list.V.L->car, to);
       }
       if (!(list.V.L->cdr.T == tyCons && !list.V.L->cdr.V.L)) {
-        fputc(' ', stdout);
-        print_list(&list.V.L->cdr);
+        fputc(' ', to);
+        print_list(&list.V.L->cdr, to);
       }
     }
     break;
   case tyIdent:
-    printf("%s", list.V.S);
+    fprintf(to, "%s", list.V.S);
     break;
   case tyInt:
-    printf("%li", list.V.I);
+    fprintf(to, "%li", list.V.I);
     break;
   case tyFloat:
-    printf("%f", list.V.F);
+    fprintf(to, "%f", list.V.F);
     break;
   case tyString:
-    printf("\"%s\"", list.V.S);
+    fprintf(to, "\"%s\"", list.V.S);
     break;
   case tyChar:
-    printf("\'%c\'", (char)list.V.I);
+    fprintf(to, "\'%c\'", (char)list.V.I);
     break;
   default:
     compiler_error(&list, "while printing: found invalid list element (T=%i)",
@@ -204,7 +204,7 @@ void print_list_test(struct val list, int depth) {
 static void print_location_hint(struct val l) {
   if (!l.FileIdx) {
     fprintf(stderr, "near generated code \"");
-    print_list(&l);
+    print_list(&l, stderr);
     fprintf(stderr, "\"\n");
   } else {
     const char *line;
@@ -256,7 +256,7 @@ void compiler_hint(struct val *l, const char *fmt, ...) {
   va_end(va);
   if (!l->FileIdx) {
     fprintf(stdout, "near generated code \"");
-    print_list(l);
+    print_list(l, stdout);
     fprintf(stdout, "\"\n");
   }
   fputs("\n", stderr);

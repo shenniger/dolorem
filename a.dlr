@@ -86,14 +86,14 @@ defun repl () void {
     printf "> ";
     assign buf:0 0;
     fgets (ptr-to buf) 255 stdin;
-    cond (= buf:0 0) {
+    cond (= buf:1 0) {
       puts "";
       break;
     };
     snprintf (ptr-to filename) 128 "<repl-%i>" n;
     := list (read-string (ptr-to buf) (ptr-to filename));
     := fun (lower-macroproto (ptr-to filename));
-    funbody fun (car list);
+    funbody fun (car list) 0;
     call-fun-macro fun list;
     assign n (+ n 1);
   };

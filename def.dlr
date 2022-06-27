@@ -67,7 +67,7 @@ funproto prepare-read ((rtv a)) rtv;
 funproto add-symbol-to-module ((str a) (LLVMModuleRef mod)) void;
 funproto read-string ((str s) (str filename)) val;
 funproto lower-macroproto ((str name)) ptr;
-funproto funbody ((ptr fun) (val body)) void;
+funproto funbody ((ptr fun) (val body) (i32 samemod)) void;
 funproto print-list ((val v)) void;
 
 # for quote

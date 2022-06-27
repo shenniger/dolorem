@@ -227,7 +227,7 @@ void init_basictypes() {
   lower_macroproto("defmacro");
   lower_macroproto("typemacroproto");
   lower_macroproto("deftypemacro");
-  lower_macroproto("compiledfunction");
+  /*lower_macroproto("compiledfunction"); TODO: ??? */
   lower_macroproto("freestanding_lambda");
   lower_macroproto("convert"); /* from type.c */
 

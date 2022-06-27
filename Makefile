@@ -15,9 +15,11 @@ LIBCLANGPREFIX ?= /usr/lib/llvm-3.9
 	$(CC) -c -Wall -Wextra -fpic -pedantic -std=c11 -isystem $(LLVMPREFIX)/include  $< -o $@ $(MODE) $(CFLAGS)
 
 llvmext.o: llvmext.cpp llvmext.h
-	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 -isystem $(LLVMPREFIX)/include  $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti
+	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti
+llvmjit.o: llvmjit.cpp llvmjit.h
+	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti
 
-libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o structs.o
+libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o structs.o llvmjit.o
 	$(CXX) $^ -o $@ -shared $(LINKFLAGS)
 
 dolorem: main.o libdolorem.so

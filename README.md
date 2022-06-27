@@ -31,7 +31,7 @@ for the front-end.
 ## Dependencies
 * Linux
 * Modern C/C++ compiler
-* LLVM 10+ (NOTE: LLVM 13 support is WIP)
+* LLVM 12+
 
 ## Compiling it
 Just type `make`. You may need to specify the environment variables `CC`, `CXX` and `LLVMPREFIX`.

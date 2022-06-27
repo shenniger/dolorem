@@ -34,7 +34,7 @@ struct rtv *lower_include_list(const char *filename, struct val *list) {
   LLVMModuleRef pcmod_before;
   const char *so_path;
   if (dump_lists) {
-    print_list(list);
+    print_list(list, stdout);
     printf("\n");
   }
   pcmod_before = precompiled_module;

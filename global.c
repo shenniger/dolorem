@@ -2,6 +2,7 @@
 
 #include "fun.h"
 #include "include.h"
+#include "jit.h"
 
 map_t map_globals;
 
@@ -27,7 +28,7 @@ void lower_defglobal(const char *name, struct rtt *type, int isextern) {
   }
   if (!isextern && precompiled_module) {
     add_global_symbol(name, type->l);
-    add_symbol_to_module(name, precompiled_module);
+    copy_symbol_to_module(name, precompiled_module);
   }
 }
 struct rtv *defglobal(struct val *l) {

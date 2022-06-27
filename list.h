@@ -1,6 +1,8 @@
 #ifndef LIST_H
 #define LIST_H
 
+#include <stdio.h>
+
 void init_alloc();
 void *get_mem(long s);
 void *more_mem(void *before, long beforesize, long addedsize);
@@ -42,7 +44,7 @@ struct val *read_file(const char *filename);
 struct val *read_stdin();
 
 unsigned int count_len(struct val *l);
-void print_list(struct val *l);
+void print_list(struct val *l, FILE *to);
 void print_list_test(struct val l, int depth);
 
 inline struct val *copy_val(struct val a) {

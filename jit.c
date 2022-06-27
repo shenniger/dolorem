@@ -8,14 +8,11 @@
 #include <stdio.h>
 
 #include "llvmext.h"
+#include "llvmjit.h"
 
 LLVMModuleRef mod, typemod;
-LLVMOrcJITStackRef orcref;
-LLVMOrcModuleHandle modhdl;
 LLVMBuilderRef bldr;
-LLVMTargetMachineRef tm;
 void *dlhdl;
-LLVMOrcSymbolResolverFn orcresolver;
 map_t map_modules;
 int dump_modules, dump_lists;
 
@@ -29,41 +26,40 @@ void handle_llvm_error(LLVMErrorRef e) {
 
 uint64_t resolve_sym(struct fun *a) {
   if (!a->ptr) {
-    LLVMOrcTargetAddress r;
-    handle_llvm_error(LLVMOrcGetSymbolAddress(orcref, &r, a->name));
+    uint64_t r = 0;
+    GetAddressFor(a->name, &r);
     if (!r) {
       if (!((r = (uint64_t)(uintptr_t)dlsym(dlhdl, a->name)))) {
         compiler_error_internal(
             "couldn't resolve function symbol in JIT: \"%s\"", a->name);
       }
     }
-    a->ptr = (uint64_t)(uintptr_t)r;
+    a->ptr = r;
   }
   return a->ptr;
 }
 
-static inline uint64_t orcresolverfun(const char *name, void *ctx) {
+static inline uint64_t lower_resolve_address(const char *name) {
   struct fun *f;
-  (void)ctx;
   f = lookup_fun(name);
   if (!f) {
     struct global *g;
     g = lookup_global(name);
     if (!g) {
-      compiler_error_internal("orc attempted to lookup unknown symbol: \"%s\"",
+      compiler_error_internal("attempted to register unknown symbol: \"%s\"",
                               name);
     }
 
     if (!g->ptr) {
-      LLVMOrcTargetAddress r;
-      handle_llvm_error(LLVMOrcGetSymbolAddress(orcref, &r, g->name));
+      uint64_t r = 0;
+      GetAddressFor(g->name, &r);
       if (!r) {
         if (!((r = (uint64_t)(uintptr_t)dlsym(dlhdl, g->name)))) {
           compiler_error_internal(
-              "couldn't resolve function symbol in JIT: \"%s\"", g->name);
+              "couldn't resolve global symbol in JIT: \"%s\"", g->name);
         }
       }
-      g->ptr = (uint64_t)(uintptr_t)r;
+      g->ptr = r;
     }
     return g->ptr;
   }
@@ -81,8 +77,7 @@ void end_function(const char *name) {
     compiler_error_internal(
         "couldn't add module to list of modules upon compiling \"%s\"", name);
   }
-  handle_llvm_error(
-      LLVMOrcAddEagerlyCompiledIR(orcref, &modhdl, mod, orcresolver, NULL));
+  handle_llvm_error(AddLLJITModule(mod));
   mod = NULL;
 }
 void add_global_symbol(const char *name, LLVMTypeRef t) {
@@ -101,44 +96,16 @@ void add_global_symbol(const char *name, LLVMTypeRef t) {
     compiler_error_internal(
         "couldn't add module to list of modules upon compiling \"%s\"", name);
   }
-  handle_llvm_error(
-      LLVMOrcAddEagerlyCompiledIR(orcref, &modhdl, b, orcresolver, NULL));
+  handle_llvm_error(AddLLJITModule(b));
+}
+static void address_registrar(const char *name) {
+  RegisterAddress(name, lower_resolve_address(name));
 }
 void init_jit() {
-  char *err;
-  orcresolver = &orcresolverfun;
-
   map_modules = hashmap_new();
-
   dlhdl = dlopen("", RTLD_LAZY);
   bldr = LLVMCreateBuilder();
-
-  LLVMInitializeNativeTarget();
-  LLVMInitializeNativeAsmParser();
-  LLVMInitializeNativeAsmPrinter();
-  LLVMLinkInMCJIT();
-
-  LLVMTargetRef targetref;
-  char *targettriple = LLVMGetDefaultTargetTriple();
-  if (LLVMGetTargetFromTriple(targettriple, &targetref, &err)) {
-    compiler_error_internal("error getting JIT target: %s", err);
-  }
-  if (!LLVMTargetHasJIT(targetref)) {
-    compiler_error_internal("fatal error: target has no LLVM JIT");
-  }
-  tm = LLVMCreateTargetMachine(targetref, targettriple, "", "",
-                               LLVMCodeGenLevelDefault, LLVMRelocDefault,
-                               LLVMCodeModelJITDefault);
-  if (!tm) {
-    compiler_error_internal("error creating LLVM target machine");
-  }
-  LLVMDisposeMessage(targettriple);
-
-  orcref = LLVMOrcCreateInstance(tm);
-  if (!orcref) {
-    compiler_error_internal("error creating LLVM ORC instance");
-  }
-
+  InitLLJIT(&address_registrar);
   typemod = LLVMModuleCreateWithName("test");
 }
 int module_freer(any_t item, any_t value) {
@@ -150,8 +117,6 @@ void end_jit() {
   hashmap_iterate(map_modules, module_freer, NULL);
   hashmap_free(map_modules);
   LLVMDisposeModule(typemod);
-  LLVMOrcDisposeInstance(orcref);
-  LLVMDisposeTargetMachine(tm);
   LLVMDisposeBuilder(bldr);
   dlclose(dlhdl);
 }
