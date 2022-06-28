@@ -2,10 +2,10 @@
 #define JIT_H
 
 #include "hashmap.h"
-#include "orc_backport/OrcBindings.h"
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitWriter.h>
 #include <llvm-c/Core.h>
+#include <llvm-c/Error.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Linker.h>
 #include <llvm-c/Target.h>
