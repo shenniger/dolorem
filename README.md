@@ -29,8 +29,7 @@ called `lower-not` which calls `LLVMBuildNot` and generates type information
 for the front-end.
 
 ## Dependencies
-* Linux
-* Modern C/C++ compiler
+* Mac OS/Linux (BSD might work)
 * LLVM 12+
 
 ## Compiling it
