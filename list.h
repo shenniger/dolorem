@@ -45,6 +45,7 @@ struct val *read_stdin();
 
 unsigned int count_len(struct val *l);
 void print_list(struct val *l, FILE *to);
+void print_list_to_stdout(struct val *l);
 void print_list_test(struct val l, int depth);
 
 inline struct val *copy_val(struct val a) {

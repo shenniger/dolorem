@@ -14,8 +14,14 @@
 struct typeinf *basictypes_integer, *basictypes_alias, *basictypes_pointer,
     *basictypes_float, *basictypes_array;
 
+int is_void(struct rtt *a);
 int is_int(struct rtt *a);
 int is_float(struct rtt *a);
+int is_pointer(struct rtt *a);
+int is_array(struct rtt *a);
+int is_alias(struct rtt *a);
+int is_opaque_alias(struct rtt *a);
+int is_str(struct rtt *a);
 
 static const char *print_alias_type(struct type *t) {
   if (t->prop.alias->l) {
@@ -73,12 +79,11 @@ static const char *print_array_type(struct type *t) {
                       print_type(&t->prop.arr->t));
 }
 
-struct rtv *convert_alias_unwrap(struct rtv *v, struct rtt *to,
-                                 int is_explicit) {
+struct rtv *convert_alias_unwrap(struct rtv *v, struct rtt *to, int flags) {
   struct rtv *newv;
   struct rtt *newto;
   int foundalias;
-  (void)is_explicit;
+  (void)flags;
   foundalias = 0;
   newv = v;
   newto = to;
@@ -98,10 +103,13 @@ struct rtv *convert_alias_unwrap(struct rtv *v, struct rtt *to,
   }
 }
 
-struct rtv *convert_pointer_types(struct rtv *v, struct rtt *to,
-                                  int is_explicit) {
+struct rtt *unwrap_alias(struct rtt *v) {
+  return v->t.prop.alias->l;
+}
+
+struct rtv *convert_pointer_types(struct rtv *v, struct rtt *to, int flags) {
   if (v->t.info == basictypes_pointer && to->t.info == basictypes_pointer) {
-    if (!is_explicit && 0) { /* TODO */
+    if (!(flags & tcfExplicit) && 0) { /* TODO */
       /*
        * TODO: This rule is too lenient and doesn't handle volatility and
        * constness correctly. Also too strict regarding pointers to aliases
@@ -123,10 +131,11 @@ struct rtv *convert_pointer_types(struct rtv *v, struct rtt *to,
   return NULL;
 }
 
-struct rtv *convert_numbers(struct rtv *v, struct rtt *to, int is_explicit) {
+struct rtv *convert_numbers(struct rtv *v, struct rtt *to, int flags) {
   if (v->t.info == basictypes_integer && to->t.info == basictypes_integer) {
     /* TODO: pay attention to signedness */
-    if (!is_explicit && ((v->t.prop.num & 0xff) > (to->t.prop.num & 0xff))) {
+    if (!(flags & tcfExplicit) &&
+        ((v->t.prop.num & 0xff) > (to->t.prop.num & 0xff))) {
       /*return NULL; */ /* TODO: find a solution for this */
     }
     struct rtv *c;
@@ -136,7 +145,7 @@ struct rtv *convert_numbers(struct rtv *v, struct rtt *to, int is_explicit) {
     return c;
   }
   if (v->t.info == basictypes_float && to->t.info == basictypes_float) {
-    if (!is_explicit && (v->t.prop.num < to->t.prop.num)) {
+    if (!(flags & tcfExplicit) && (v->t.prop.num < to->t.prop.num)) {
       return NULL;
     }
     struct rtv *c;
@@ -153,7 +162,7 @@ struct rtv *convert_numbers(struct rtv *v, struct rtt *to, int is_explicit) {
     }
   }
   if (v->t.info == basictypes_float && to->t.info == basictypes_integer &&
-      is_explicit) {
+      (flags & tcfExplicit)) {
     if (to->t.prop.num & 0x100) {
       return make_rtv(LLVMBuildFPToSI(bldr, v->v, to->l, "fptosi"), to, vfR);
     } else {

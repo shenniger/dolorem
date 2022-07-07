@@ -1,0 +1,80 @@
+include "def.dlr";
+funproto printf (str a; ...) void;
+external-global ptr stdin;
+funproto fgets (str s; i32 size; ptr f;) str;
+funproto strchr (str haystack; char needle;) (ptr u8);
+funproto system (str cmd;) i32;
+funproto snprintf (str buf; u64 size; ...) i64;
+funproto puts (str a;) void;
+
+defun generate-call-to-printf (str fmt; rtv v;) rtv {
+  var (array 2 rtv) args;
+  assign args:0 (string-literal fmt);
+  assign args:1 v;
+ funcall-custom-args (lookup-fun "printf") (ptr-to args) 2;
+};
+
+defmacro print-anything {
+  := sth (eval (car args));
+  := type (unwrap-type sth);
+  := done 0;
+  var rtv ret;
+  cond (&& (is-alias type) (not (is-opaque-alias type))) {
+    assign type (unwrap-alias type);
+    assign done 1;
+  };
+  cond (is-opaque-alias type) {
+    := ret (eval (quote puts "<opaque type>"));
+    assign done 1;
+  };
+  cond (is-array type) {
+    := ret (eval (quote puts "<array>"));
+    assign done 1;
+  };
+  cond (is-int type) {
+    assign ret (generate-call-to-printf "%lli\n" (convert-type sth (eval-type (quote i32)) 0));
+    assign done 1;
+  };
+  cond (is-float type) {
+    assign ret (generate-call-to-printf "%f\n" (convert-type sth (eval-type (quote double)) 0));
+    assign done 1;
+  };
+  cond (is-str type) {
+    assign ret (generate-call-to-printf "\"%s\"\n" (convert-type sth (eval-type (quote str)) 0));
+    assign done 1;
+  };
+  cond (is-pointer type) {
+    assign ret (generate-call-to-printf "%x\n" (convert-type sth (eval-type (quote ptr)) 0));
+    assign done 1;
+  };
+  cond (not done) {
+    := ret (eval (quote puts "<other type>"));
+  };
+ ret
+};
+
+defun repl () void {
+  var (array 255 char) buf;
+  var (array 128 char) filename;
+  := n 0;
+  while 1 {
+    printf "> ";
+    assign buf:0 0;
+    fgets (ptr-to buf) 255 stdin;
+    cond (= buf:1 0) {
+      puts "";
+      break;
+    };
+    snprintf (ptr-to filename) 128 "<repl-%i>" n;
+    := list (read-string (ptr-to buf) (ptr-to filename));
+    := fun (lower-macroproto (ptr-to filename));
+    funbody fun (quasiquote progn
+                              (print-anything (quasiunquote (car list)))
+                              (empty-rtv)) 0;
+    call-fun-macro fun list;
+    assign n (+ n 1);
+  };
+};
+
+defmacro run-repl { repl; empty-rtv; };
+run-repl;

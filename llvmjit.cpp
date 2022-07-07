@@ -66,8 +66,6 @@ Error JITHelper::init(void (*pleaseRegisterCallback)(const char *name)) {
           .setObjectLinkingLayerCreator([&](ExecutionSession &ES,
                                             const Triple &TT)
                                             -> std::unique_ptr<ObjectLayer> {
-            // Except for the GDBListener registration, the rest of
-            // the code is taken from LLJIT.cpp.
             auto GetMemMgr = []() {
               return std::make_unique<SectionMemoryManager>();
             };
@@ -78,15 +76,8 @@ Error JITHelper::init(void (*pleaseRegisterCallback)(const char *name)) {
                   true);
               ObjLinkingLayer->setAutoClaimResponsibilityForObjectSymbols(true);
             }
-            /*auto GDBListener =
-                JITEventListener::createGDBRegistrationListener();
-            using namespace std::placeholders;
-            ObjLinkingLayer->setNotifyLoaded(
-                [&GDBListener](MaterializationResponsibility &a,
-                               const object::ObjectFile &b,
-                               const RuntimeDyld::LoadedObjectInfo &c) {
-                  GDBListener->notifyObjectLoaded(a, b, c);
-                });*/
+            ObjLinkingLayer->registerJITEventListener(
+                *JITEventListener::createGDBRegistrationListener());
             return ObjLinkingLayer;
           })
           .create();

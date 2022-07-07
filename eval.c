@@ -29,29 +29,35 @@ struct rtv *make_int_const(long i) {
       make_rtt(LLVMInt64Type(), basictypes_integer, (void *)(0x100 | 64), 0),
       vfR);
 }
+struct rtv *eval_call(struct val *e) {
+  struct val *name, *args;
+  struct fun *f;
+  name = car(e);
+  args = cdr(e);
+  if (name->T != tyIdent) {
+    compiler_error(name, "expected function name");
+  }
+  f = lookup_fun(name->V.S);
+  if (!f) {
+    compiler_error(e, "unknown function \"%s\"", name->V.S);
+  }
+  if (f->type.flags & ffTypeMacro) {
+    compiler_error(e, "attempt to directly call type macro");
+  }
+  if (f->type.flags & ffMacro) {
+    return call_fun_macro(f, args);
+  } else {
+    return funcall(f, args);
+  }
+}
+struct rtv *string_literal(char *a) {
+  return make_rtv(LLVMBuildGlobalStringPtr(bldr, a, "strliteral"),
+                  lower_pointer_type(lower_integer_type(8, 0)), vfR);
+}
 struct rtv *eval(struct val *e) {
   switch (e->T) {
-  case tyCons: {
-    struct val *name, *args;
-    struct fun *f;
-    name = car(e);
-    args = cdr(e);
-    if (name->T != tyIdent) {
-      compiler_error(name, "expected function name");
-    }
-    f = lookup_fun(name->V.S);
-    if (!f) {
-      compiler_error(e, "unknown function \"%s\"", name->V.S);
-    }
-    if (f->type.flags & ffTypeMacro) {
-      compiler_error(e, "attempt to directly call type macro");
-    }
-    if (f->type.flags & ffMacro) {
-      return call_fun_macro(f, args);
-    } else {
-      return funcall(f, args);
-    }
-  }
+  case tyCons:
+    return eval_call(e);
   case tyInt:
     return make_int_const(e->V.I);
   case tyFloat:
@@ -83,8 +89,7 @@ struct rtv *eval(struct val *e) {
     compiler_error(e, "unknown identifier \"%s\"", e->V.S);
   }
   case tyString:
-    return make_rtv(LLVMBuildGlobalStringPtr(bldr, e->V.S, "strliteral"),
-                    lower_pointer_type(lower_integer_type(8, 0)), vfR);
+    return string_literal(e->V.S);
   case tyChar:
     return make_rtv(LLVMConstInt(LLVMInt8Type(), e->V.I, 0),
                     lower_integer_type(8, 0), vfR);
@@ -119,44 +124,40 @@ struct rtv *scope(struct val *e) {
 }
 
 struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
-                          struct val *args) {
+                          struct rtv **args, int nargs, struct val *list) {
   LLVMValueRef *v;
   struct rtv r;
-  long i, count;
-  count = count_len(args);
-  if (count != funtype.nparms && !(funtype.flags & ffVaArgs)) {
-    compiler_error(args, "expected %i arguments, found %i", funtype.nparms,
-                   count_len(args));
+  long i;
+  if (nargs != funtype.nparms && !(funtype.flags & ffVaArgs)) {
+    compiler_error(list, "expected %i arguments, found %i", funtype.nparms,
+                   nargs);
   }
-  if ((funtype.flags & ffVaArgs) && count < funtype.nparms) {
-    compiler_error(args, "expected at least %i arguments, found %i",
-                   funtype.nparms, count_len(args));
+  if ((funtype.flags & ffVaArgs) && nargs < funtype.nparms) {
+    compiler_error(list, "expected at least %i arguments, found %i",
+                   funtype.nparms, nargs);
   }
-  if (funtype.nparms) {
-    v = get_mem(sizeof(LLVMValueRef *) * funtype.nparms);
-    i = 0;
-    do {
-      struct rtv *c;
-      struct rtv *from;
-      from = prepare_read(eval(car(args)));
-      if (i >= funtype.nparms) {
-        c = from; /* TODO: handle VA-ARGS properly according to
-                     the calling convention */
-      } else {
-        c = convert_type(from, &funtype.parms[i].t, 0);
-        if (!c) {
-          compiler_error(car(args), "couldn't convert type \"%s\" to \"%s\"",
-                         print_type(&from->t),
-                         print_type(&funtype.parms[i].t.t));
-        }
-      }
-      v[i] = c->v;
-      ++i;
-    } while (!is_nil(args = cdr(args)));
-  } else {
+  if (!funtype.nparms) {
     v = NULL;
+  } else {
+    v = (LLVMValueRef *)args; /* reusing memory */
   }
-  r.v = LLVMBuildCall2(bldr, funtype.funtype, fun, v, count,
+  for (i = 0; i < nargs; ++i) {
+    struct rtv *c;
+    struct rtv *from;
+    from = prepare_read(args[i]);
+    if (i >= funtype.nparms) {
+      c = from; /* TODO: handle VA-ARGS properly according to
+                   the calling convention */
+    } else {
+      c = convert_type(from, &funtype.parms[i].t, 0);
+      if (!c) {
+        compiler_error(list, "couldn't convert type \"%s\" to \"%s\"",
+                       print_type(&from->t), print_type(&funtype.parms[i].t.t));
+      }
+    }
+    v[i] = c->v;
+  }
+  r.v = LLVMBuildCall2(bldr, funtype.funtype, fun, v, nargs,
                        funtype.ret.t.info
                            ? print_to_mem("funcall_%s", LLVMGetValueName(fun))
                            : "");
@@ -164,14 +165,49 @@ struct rtv *lower_funcall(LLVMValueRef fun, struct funtypeprop funtype,
   r.t.value_flags = vfR;
   return copy_rtv(r);
 }
-struct rtv *funcall(struct fun *a, struct val *args) {
+struct rtv *funcall_custom_args(struct fun *a, struct rtv **args, int nargs) {
   LLVMValueRef fun;
   fun = LLVMGetNamedFunction(mod, a->name);
   if (!fun) {
     fun = LLVMAddFunction(mod, a->name, a->type.funtype);
     fun_set_proper_parm_names(a, fun);
   }
-  return lower_funcall(fun, a->type, args);
+  return lower_funcall(fun, a->type, args, nargs, NULL);
+}
+struct rtv *funcall(struct fun *a, struct val *args) {
+  LLVMValueRef fun;
+  long i, count;
+  struct rtv **v;
+  fun = LLVMGetNamedFunction(mod, a->name);
+  if (!fun) {
+    fun = LLVMAddFunction(mod, a->name, a->type.funtype);
+    fun_set_proper_parm_names(a, fun);
+  }
+  count = count_len(args);
+  if (count) {
+    v = get_mem(sizeof(struct rtv *) * count);
+    i = 0;
+    do {
+      v[i] = eval(car(args));
+      ++i;
+    } while (!is_nil(args = cdr(args)));
+  }
+  return lower_funcall(fun, a->type, v, count, args);
+}
+static struct rtv *funcall_custom_fun(LLVMValueRef fun, struct funtypeprop type,
+                                      struct val *args) {
+  long i, count;
+  struct rtv **v;
+  count = count_len(args);
+  if (count) {
+    v = get_mem(sizeof(struct rtv *) * count);
+    i = 0;
+    do {
+      v[i] = eval(car(args));
+      ++i;
+    } while (!is_nil(args = cdr(args)));
+  }
+  return lower_funcall(fun, type, v, count, args);
 }
 
 struct rtv *call_fun_macro(struct fun *name, struct val *e) {
@@ -219,5 +255,5 @@ struct rtv *call_funptr(struct val *e) {
     compiler_error(car(e), "expected function pointer type, found: %s",
                    print_type(&fptr->t));
   }
-  return lower_funcall(fptr->v, *fptr->t.prop.fun, args);
+  return funcall_custom_fun(fptr->v, *fptr->t.prop.fun, args);
 }

@@ -27,9 +27,8 @@ struct type *unwrap_type_t(struct rtv *a);
 struct rtv *make_rtv_from_type(LLVMValueRef v, struct type t,
                                uint32_t value_flags);
 
-struct rtv *convert_equal_types(struct rtv *v, struct rtt *to,
-                                int is_explicit) {
-  (void)is_explicit;
+struct rtv *convert_equal_types(struct rtv *v, struct rtt *to, int flags) {
+  (void)flags;
   /* TODO: This rule is too lenient and doesn't handle volatility and constness
    * correctly. */
   if (v->t.info == to->t.info) {
@@ -87,12 +86,22 @@ void register_type(const char *name, struct fun *macro, void *prop) {
 
 struct rtv *convert(struct val *l) {
   struct val *type, *expr;
+  struct rtv *ret, *src;
+  struct rtt *dest;
   type = car(l);
   expr = car(cdr(l));
   if (!is_nil(cdr(cdr(l)))) {
     compiler_error(cdr(l), "excess elements in \"convert\"");
   }
-  return convert_type(eval(expr), eval_type(type), 1);
+  src = eval(expr);
+  dest = eval_type(type);
+  ret = convert_type(src, dest, tcfExplicit);
+  if (!ret) {
+    convert_type(eval(expr), eval_type(type), tcfExplicit & tcfPrintHints);
+    compiler_error(l, "explicit type conversion from \"%s\" to \"%s\" failed",
+                   print_type(unwrap_type_t(src)), print_type(&dest->t));
+  }
+  return ret;
 }
 
 struct rtt *eval_type(struct val *e) {
@@ -149,13 +158,13 @@ void lower_register_type_converter(struct fun *f) {
 
 struct rtt *make_rtt(LLVMTypeRef r, struct typeinf *info, void *prop,
                      long type_flags);
-struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit_cast) {
+struct rtv *convert_type(struct rtv *a, struct rtt *to, int flags) {
   struct type_converter *t;
   struct rtv *r;
   struct rtv *from;
   from = prepare_read(a);
   for (t = type_converter_list; t; t = t->next) {
-    if ((r = call_type_converter(t->f, from, to, is_explicit_cast))) {
+    if ((r = call_type_converter(t->f, from, to, flags))) {
       return r;
     }
   }

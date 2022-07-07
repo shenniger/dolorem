@@ -62,13 +62,24 @@ funproto compiler-error ((val v) (str msg)) void;
 funproto make-int-const ((i64 a)) rtv;
 funproto is-int ((rtt v)) i32;
 funproto is-float ((rtt v)) i32;
+funproto is-alias ((rtt v)) i32;
+funproto is-pointer ((rtt v)) i32;
+funproto is-str ((rtt v)) i32;
+funproto is-array ((rtt v)) i32;
+funproto is-opaque-alias ((rtt v)) i32;
+funproto print-type ((ptr v)) str;
+funproto unwrap-alias ((rtt v)) rtt;
+funproto unwrap-pointer ((rtt v)) rtt;
 funproto lookup-fun ((str v)) fun;
 funproto prepare-read ((rtv a)) rtv;
 funproto add-symbol-to-module ((str a) (LLVMModuleRef mod)) void;
 funproto read-string ((str s) (str filename)) val;
 funproto lower-macroproto ((str name)) ptr;
 funproto funbody ((ptr fun) (val body) (i32 samemod)) void;
-funproto print-list ((val v)) void;
+funproto string-literal (str a;) rtv;
+create-alias rtvs (ptr rtv);
+funproto funcall-custom-args (fun a; rtvs args; i32 nargs;) rtv;
+#funproto print-list ((val v)) void;
 
 # for quote
 funproto make-nil-val () val;

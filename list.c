@@ -107,6 +107,7 @@ char *print_to_mem(const char *fmt, ...) {
   va_end(va);
   return str;
 }
+void print_list_to_stdout(struct val *l) { print_list(l, stdout); }
 void print_list(struct val *l, FILE *to) {
   struct val list;
   list = *l;
@@ -351,6 +352,12 @@ static struct SourceFile get_source_file(unsigned short idx) {
   }
   for (i = 1, s = firstsource; s && i != idx; ++i, s = s->Next)
     ;
+  if (!s) {
+    struct SourceFile a;
+    a.Name = "<err finding source file name>";
+    a.Content = NULL;
+    return a;
+  }
   return *s;
 }
 

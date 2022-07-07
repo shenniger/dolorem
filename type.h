@@ -24,6 +24,8 @@ struct type {
 };
 enum { vfR = 0, vfL = 1 }; /* L/R value */
 
+enum { tcfExplicit = 1, tcfPrintHints = 2 };
+
 struct rtt { /* run-time type */
   LLVMTypeRef l;
   struct type t;
@@ -60,13 +62,13 @@ extern struct type_converter *type_converter_last;
 struct rtv *register_type_converter(struct val *l);
 void lower_register_type_converter(struct fun *f);
 
-struct rtv *convert_equal_types(struct rtv *v, struct rtt *to, int is_explicit);
+struct rtv *convert_equal_types(struct rtv *v, struct rtt *to, int flags);
 
 void init_types();
 void end_types();
 struct rtt *eval_type(struct val *e);
 struct rtv *convert(struct val *e);
-struct rtv *convert_type(struct rtv *a, struct rtt *to, int is_explicit);
+struct rtv *convert_type(struct rtv *a, struct rtt *to, int flags);
 const char *print_type(struct type *t);
 long sizeof_type(struct rtt *a);
 void register_type(const char *name, struct fun *macro, void *prop);
@@ -120,12 +122,11 @@ inline struct rtv *make_twin_rtv(LLVMValueRef v, struct rtv *old) {
   return r;
 }
 inline LLVMValueRef unwrap_llvm_value(struct rtv *a) { return a->v; }
-inline struct rtv *empty_rtv() {
-  struct rtv *b;
-  b = (struct rtv *)get_mem(sizeof(struct rtv));
-  return b;
-}
+inline struct rtv *empty_rtv() { return &null_rtv; }
 inline struct rtt *unwrap_type(struct rtv *a) {
+  if (!a->t.info) {
+    return make_rtt_from_type(NULL, a->t);
+  }
   if (a->t.value_flags & vfL) {
     return make_rtt_from_type(LLVMGetElementType(LLVMTypeOf(a->v)), a->t);
   }
