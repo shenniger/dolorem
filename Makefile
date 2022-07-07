@@ -1,26 +1,33 @@
-all: dolorem chdrconv
+all: dolorem
 
 CC = gcc
 CXX = g++
 
 MODE ?= -g -O0
+
+# I am trying to provide a sensible default here, but it is likely that you will
+# have to change these variables for dolorem to compile on your system.
+ifeq ($(shell uname), Darwin)
+	LLVMPREFIX ?= /usr/local/opt/llvm
+else
+	LLVMPREFIX ?= /usr
+endif
+
+
 CFLAGS ?=
 CXXFLAGS ?= 
 LINKFLAGS ?=
-
-LLVMPREFIX ?= /usr
-LIBCLANGPREFIX ?= /usr/lib/llvm-3.9
 
 %.o: %.c *.h
 	$(CC) -c -Wall -Wextra -fpic -pedantic -std=c11 -isystem $(LLVMPREFIX)/include  $< -o $@ $(MODE) $(CFLAGS)
 
 llvmext.o: llvmext.cpp llvmext.h
-	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti
+	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti -isystem $(LLVMPREFIX)/include
 llvmjit.o: llvmjit.cpp llvmjit.h
-	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti
+	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti -isystem $(LLVMPREFIX)/include
 
 libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o structs.o llvmjit.o
-	$(CXX) $^ -o $@ -shared $(LINKFLAGS)
+	$(CXX) $^ -o $@ -shared $(LINKFLAGS) -lLLVM -L $(LLVMPREFIX)/lib
 
 dolorem: main.o libdolorem.so
 	$(CXX) -L. $^ -o $@ -fno-rtti -fno-exceptions -L $(LLVMPREFIX)/lib -lLLVM -ldl $(MODE) $(LINKFLAGS)

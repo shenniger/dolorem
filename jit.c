@@ -103,7 +103,7 @@ static void address_registrar(const char *name) {
 }
 void init_jit() {
   map_modules = hashmap_new();
-  dlhdl = dlopen("", RTLD_LAZY);
+  dlhdl = dlopen(NULL, RTLD_LAZY);
   bldr = LLVMCreateBuilder();
   InitLLJIT(&address_registrar);
   typemod = LLVMModuleCreateWithName("test");
