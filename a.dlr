@@ -1,11 +1,4 @@
 include "def.dlr";
-funproto printf (str a; ...) void;
-external-global ptr stdin;
-funproto fgets (str s; i32 size; ptr f;) str;
-funproto strchr (str haystack; char needle;) (ptr u8);
-funproto system (str cmd;) i32;
-funproto snprintf (str buf; u64 size; ...) i64;
-funproto puts (str a;) void;
 
 defun print (((funptr () str) getter)) void {
   puts (call-funptr getter);

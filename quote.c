@@ -6,6 +6,7 @@
 #include "eval.h"
 #include "fun.h"
 #include "jit.h"
+#include "list.h"
 #include "type.h"
 
 void init_quote() {
@@ -61,6 +62,9 @@ LLVMValueRef lower_quote(struct val *e, int quasi) {
         struct rtv *res, *n;
         res = prepare_read(eval(car(cdr(e))));
         n = convert_type(res, lower_alias_type(rt_val_type), 0);
+        if (!n) {
+          compiler_error(e, "failed type conversion in quasiunquote");
+        }
         return n->v;
       }
       args[0] = lower_quote(f, quasi);

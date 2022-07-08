@@ -1,11 +1,4 @@
 include "def.dlr";
-funproto printf (str a; ...) void;
-external-global ptr stdin;
-funproto fgets (str s; i32 size; ptr f;) str;
-funproto strchr (str haystack; char needle;) (ptr u8);
-funproto system (str cmd;) i32;
-funproto snprintf (str buf; u64 size; ...) i64;
-funproto puts (str a;) void;
 
 defun generate-call-to-printf (str fmt; rtv v;) rtv {
   var (array 2 rtv) args;
@@ -60,7 +53,12 @@ defun repl () void {
   while 1 {
     printf "> ";
     assign buf:0 0;
-    fgets (ptr-to buf) 255 stdin;
+    static-cond (os-is-linux) {
+      fgets (ptr-to buf) 255 stdin;
+    };
+    static-cond (os-is-apple) {
+      fgets (ptr-to buf) 255 __stdinp;
+    };
     cond (= buf:1 0) {
       puts "";
       break;

@@ -128,6 +128,14 @@ struct rtv *convert_pointer_types(struct rtv *v, struct rtt *to, int flags) {
     c->t.prop.type = to->t.prop.type;
     return c;
   }
+  if (v->t.info == basictypes_integer && to->t.info == funptr &&
+      (flags & tcfExplicit)) {
+    struct rtv *c;
+    c = copy_rtv(*v);
+    c->t = to->t;
+    c->v = LLVMBuildIntToPtr(bldr, c->v, to->l, "inttofunptr");
+    return c;
+  }
   return NULL;
 }
 

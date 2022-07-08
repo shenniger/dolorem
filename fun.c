@@ -6,9 +6,11 @@
 #include "jit.h"
 #include "list.h"
 #include "llvmext.h"
+#include "type.h"
 
 #include <alloca.h>
 #include <assert.h>
+#include <llvm-c/Types.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -283,13 +285,14 @@ void funbody(struct fun *f, struct val *body, int same_mod) {
   struct rtv ret;
   long i;
   LLVMValueRef *params;
+  LLVMModuleRef old;
 
   if (!precompiled_module) {
     return;
   }
 
   if (!same_mod) {
-    begin_new_function();
+    old = begin_new_function();
   }
   fun = LLVMAddFunction(mod, f->name, f->type.funtype);
   fun_set_proper_parm_names(f, fun);
@@ -339,7 +342,7 @@ void funbody(struct fun *f, struct val *body, int same_mod) {
   curllvmfn = prev2;
   SetBuilderPosition(bldr, prev3);
   if (!same_mod) {
-    end_function(f->name);
+    end_function(f->name, old);
   }
   /*
    * TODO: fix precompilation and then add this:

@@ -26,7 +26,7 @@ llvmext.o: llvmext.cpp llvmext.h
 llvmjit.o: llvmjit.cpp llvmjit.h
 	$(CXX) -c -Wall -Wextra -fpic -pedantic -std=c++17 $< -o $@ $(MODE) $(CXXFLAGS) -fno-exceptions -fno-rtti -isystem $(LLVMPREFIX)/include
 
-libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o structs.o llvmjit.o
+libdolorem.so: list.o jit.o hashmap.o type.o fun.o basictypes.o eval.o global.o var.o quote.o include.o llvmext.o structs.o llvmjit.o os_detection.o
 	$(CXX) $^ -o $@ -shared $(LINKFLAGS) -lLLVM -L $(LLVMPREFIX)/lib
 
 dolorem: main.o libdolorem.so

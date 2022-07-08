@@ -9,6 +9,7 @@
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Linker.h>
 #include <llvm-c/Target.h>
+#include <llvm-c/Types.h>
 
 extern LLVMModuleRef mod, typemod;
 extern LLVMBuilderRef bldr;
@@ -20,8 +21,8 @@ void handle_llvm_error(LLVMErrorRef e);
 struct fun;
 uint64_t resolve_sym(struct fun *a);
 void init_jit();
-void begin_new_function();
-void end_function(const char *name);
+LLVMModuleRef begin_new_function();
+void end_function(const char *name, LLVMModuleRef old);
 void end_jit();
 void add_symbol_to_module(const char *name, LLVMModuleRef dest);
 void copy_symbol_to_module(const char *name, LLVMModuleRef dest);

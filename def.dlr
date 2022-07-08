@@ -79,7 +79,18 @@ funproto funbody ((ptr fun) (val body) (i32 samemod)) void;
 funproto string-literal (str a;) rtv;
 create-alias rtvs (ptr rtv);
 funproto funcall-custom-args (fun a; rtvs args; i32 nargs;) rtv;
+funproto resolve-sym (fun a;) u64;
+funproto os-is-linux () i32;
+funproto os-is-apple () i32;
 #funproto print-list ((val v)) void;
+
+# libc
+funproto printf (str a; ...) void;
+funproto fgets (str s; i32 size; ptr f;) str;
+funproto strchr (str haystack; char needle;) (ptr u8);
+funproto system (str cmd;) i32;
+funproto snprintf (str buf; u64 size; ...) i64;
+funproto puts (str a;) void;
 
 # for quote
 funproto make-nil-val () val;
@@ -261,4 +272,30 @@ funproto dlopen ((str a) (i32 mode)) ptr;
 defmacro link-in {
   dlopen (expect-ident (car args)) 257;
  (empty-rtv)
+};
+
+# conditional compilation (vaguely similar to constexpr_if in C++ or static if in D)
+defglobal i32 static-cond-number;
+defmacro static-cond {
+  # We create and compile a function that contains the condition.
+  assign static-cond-number (+ 1 static-cond-number);
+  var (array 64 char) cond-fun-name;
+  snprintf (ptr-to cond-fun-name) 64 "<static-cond-%i>" static-cond-number;
+  call-fun-macro (lookup-fun "funproto") (quasiquote (quasiunquote (make-ident-val (ptr-to cond-fun-name))) () bool);
+  funbody (lookup-fun (ptr-to cond-fun-name)) (car args) 0; # This compiles the condition to machine code.
+  := compiled-cond-fun (convert (funptr () bool) (resolve-sym (lookup-fun (ptr-to cond-fun-name))));
+  := bool-cond (call-funptr compiled-cond-fun);
+
+  cond bool-cond {
+    eval (cadr args);
+  };
+ empty-rtv;
+};
+
+# On Mac, stdin is called __stdinp. Hence, we use static-cond.
+static-cond (os-is-apple) {
+  external-global ptr __stdinp;
+};
+static-cond (os-is-linux) {
+  external-global ptr stdin;
 };

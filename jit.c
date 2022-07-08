@@ -4,6 +4,7 @@
 #include "global.h"
 #include "list.h"
 #include <dlfcn.h>
+#include <llvm-c/Types.h>
 #include <stddef.h>
 #include <stdio.h>
 
@@ -65,8 +66,12 @@ static inline uint64_t lower_resolve_address(const char *name) {
   }
   return resolve_sym(f);
 }
-void begin_new_function() { mod = LLVMModuleCreateWithName("test"); }
-void end_function(const char *name) {
+LLVMModuleRef begin_new_function() {
+  LLVMModuleRef old = mod;
+  mod = LLVMModuleCreateWithName("test");
+  return old;
+}
+void end_function(const char *name, LLVMModuleRef old) {
   LLVMVerifyModule(mod, LLVMPrintMessageAction, NULL);
   if (dump_modules) {
     LLVMDumpModule(mod);
@@ -78,7 +83,7 @@ void end_function(const char *name) {
         "couldn't add module to list of modules upon compiling \"%s\"", name);
   }
   handle_llvm_error(AddLLJITModule(mod));
-  mod = NULL;
+  mod = old;
 }
 void add_global_symbol(const char *name, LLVMTypeRef t) {
   LLVMModuleRef a, b;
