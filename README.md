@@ -2,6 +2,15 @@
 The idea is to have a programming language with macros are so powerful, they
 can even call directly into the code generator.
 
+This version of Dolorem compiles to LLVM and is a bit hard to read;
+if you are new to Dolorem, see [metareflection/dolorem-c](https://github.com/metareflection/dolorem-c) for
+a simplified version that compiles to C.
+
+## Publication
+Simon Henniger and Nada Amin, “The Dolorem Pattern: Growing a Language through Compile-Time Function Execution”,
+in 37th European Conference on Object-Oriented Programming (ECOOP 2023), LIPIcs, Vol. 263, pp. 41:1–41:27,
+2023, DOI: <https://doi.org/10.4230/LIPIcs.ECOOP.2023.41>.
+
 ## Example
 ```
 include "def.dlr";
